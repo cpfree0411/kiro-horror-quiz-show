@@ -6,5 +6,5 @@ cd "$(dirname "$0")/.."
 VENV="${KHQS_VENV:-/srv/workdata/projects/.venvs/kiro-horror-quiz-show}"
 UV_CACHE="${KHQS_UV_CACHE:-/srv/workdata/cache/uv}"
 [ -x "$VENV/bin/python" ] || uv venv --cache-dir "$UV_CACHE" "$VENV"
-uv pip install --cache-dir "$UV_CACHE" --python "$VENV/bin/python" -e '.[dev]'
+uv pip install --cache-dir "$UV_CACHE" --python "$VENV/bin/python" --group dev
 echo "venv: $VENV"

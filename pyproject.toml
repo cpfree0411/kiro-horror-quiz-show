@@ -3,11 +3,16 @@ name = "kiro-horror-quiz-show"
 version = "0.0.0"
 description = "Engine, server, AI MC and integration for the Kiro Horror Quiz Show"
 requires-python = ">=3.12"
-# Runtime dependencies are added by the phase that first needs them (P2: ASGI server, P3: google-genai).
+# The project is not built or installed as a package. Dependencies live in groups below and are
+# installed with `uv pip install --group dev` (scripts/setup_dev.sh). Source is found through pytest's
+# `pythonpath` and the run script's PYTHONPATH.
 dependencies = []
 
-[project.optional-dependencies]
+[dependency-groups]
+# Runtime dependencies are added by the phase that first needs them (P2: ASGI server, P3: google-genai).
+runtime = []
 dev = [
+  { include-group = "runtime" },
   "pytest>=9,<10",
   "jsonschema>=4.26,<5",
   # 1.64.1 matches the Chromium build already cached in /srv/workdata/browser-cache/ms-playwright
@@ -16,6 +21,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["server", "tests"]
 addopts = "-ra -m 'not slow'"
 markers = [
   "slow: long browser checks (minutes); run with  scripts/test.sh -m slow",
