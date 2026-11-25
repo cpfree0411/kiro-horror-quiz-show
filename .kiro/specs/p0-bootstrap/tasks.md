@@ -10,6 +10,6 @@
 - [x] T8 Manifest + validator + hygiene tests (R4, R5, R10)
 - [x] T9 Static `#demo` test; run it once to completion (R6)
 - [x] T10 `tech.md`, README with ports and disclosure (R11, R12, R13)
-- [ ] T11 `git init`, first commit, private GitHub repo, push (R7)
-- [ ] T12 Clean-clone check: clone the remote to a temp dir, run `sha256sum -c` and the fast tests
+- [x] T11 `git init`, first commit, private GitHub repo, push (R7)
+- [x] T12 Clean-clone check: clone the remote to a temp dir, run `sha256sum -c` and the fast tests
 - [ ] T13 Report to the owner and wait
