@@ -1,0 +1,92 @@
+{
+  "$schema": "../stage-protocol.schema.json#/$defs/scenario",
+  "name": "trio-act2-buzzer-music",
+  "title": "Trio act 2: early buzz while reading, wrong → full text after reading → correct / buzz during the music question → hint → correct",
+  "description": "A buzzer question's text first arrives in question.text_revealed, after the reading ends. If someone buzzes during music, the stage stops the music at once and sends stage.media_ended(interrupted); only then does the engine open the answer mic.",
+  "steps": [
+    { "send": { "type": "snapshot", "sseq": 1, "data": {
+      "game": { "id": "g-demo-trio", "mode": "competitive", "act": 2, "phase": "act_intro", "phaseStartedAt": 1761300200000, "deadline": null, "questionNo": 3, "questionTotal": 8 },
+      "seats": [
+        { "seat": 0, "status": "occupied", "player": { "id": "p-mina", "name": "Mina", "fanType": "sack", "score": 30, "rank": 1, "connected": true } },
+        { "seat": 1, "status": "occupied", "player": { "id": "p-junho", "name": "Junho", "fanType": "bolt", "score": 20, "rank": 2, "connected": true } },
+        { "seat": 2, "status": "occupied", "player": { "id": "p-ray", "name": "Ray", "fanType": "tophat_skull", "score": 10, "rank": 3, "connected": true } }
+      ],
+      "question": null, "round": null, "mc": { "status": "idle" }, "openGate": null, "revealedAnswer": null } } },
+    { "delayMs": 300, "send": { "type": "act.started", "gate": { "id": "g-0", "timeoutMs": 8000 }, "data": {
+      "act": 2, "title": "Act 2 · Buzzer", "questionCount": 4,
+      "assets": [ { "assetId": "a-3f9c1d2e7b40", "mediaType": "audio", "bytes": 412000, "durationSec": 40 } ] } }, "note": "The stage preloads the asset and sends stage.media_ready" },
+    { "delayMs": 0, "await": "stage.media_ready", "timeoutMs": 10000 },
+
+    { "label": "buzzer-q" },
+    { "delayMs": 200, "send": { "type": "phase.changed", "data": { "phase": "buzzer.presenting", "deadline": null } } },
+    { "delayMs": 100, "send": { "type": "question.presented", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": { "question": {
+      "id": "q-bz-01", "kind": "buzzer", "number": 4, "act": 2, "indexInAct": 1, "category": "Midnight Superstitions",
+      "text": null, "textHidden": true, "choices": null, "media": null, "hintLevel": 0, "maxHintLevel": 0 } } }, "note": "The info board shows only the category and 'listen and answer'" },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.reading", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "buzzer.armed", "data": { "questionId": "q-bz-01" } }, "note": "Buzzing is allowed while the question is read" },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 2100, "send": { "type": "buzzer.pressed", "data": { "seat": 2, "mediaInterrupted": false, "mcInterrupted": true } }, "note": "Instantly: MC voice cut + spotlight on Ray + BUZZ!" },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.answering", "deadline": 1761300240000 } } },
+    { "delayMs": 300, "send": { "type": "mc.status", "data": { "status": "listening" } } },
+    { "delayMs": 2600, "send": { "type": "buzzer.answer_heard", "data": { "seat": 2, "text": "Pillow" } } },
+    { "delayMs": 300, "send": { "type": "phase.changed", "data": { "phase": "buzzer.judging", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "buzzer.judged", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": { "seat": 2, "correct": false, "lockedOut": [2] } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.reading", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } }, "note": "The MC reads the rest of the question" },
+    { "delayMs": 3400, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 0, "send": { "type": "question.text_revealed", "data": { "questionId": "q-bz-01", "text": "At midnight, what should you never look into before bed?" } }, "note": "Text revealed only after the reading ends" },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.open", "deadline": 1761300260000 } } },
+    { "delayMs": 1700, "send": { "type": "buzzer.pressed", "data": { "seat": 0, "mediaInterrupted": false, "mcInterrupted": false } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.answering", "deadline": 1761300272000 } } },
+    { "delayMs": 300, "send": { "type": "mc.status", "data": { "status": "listening" } } },
+    { "delayMs": 1800, "send": { "type": "buzzer.answer_heard", "data": { "seat": 0, "text": "Mirror" } } },
+    { "delayMs": 300, "send": { "type": "phase.changed", "data": { "phase": "buzzer.judging", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "buzzer.judged", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": { "seat": 0, "correct": true, "lockedOut": [2] } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.revealing_answer", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "answer.revealed", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": {
+      "questionId": "q-bz-01", "answer": "Mirror", "answerText": "The midnight mirror",
+      "results": [ { "seat": 2, "correct": false }, { "seat": 0, "correct": true } ], "credit": null } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.settling", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "score.settled", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": {
+      "deltas": [ { "seat": 0, "delta": 20, "score": 50, "rank": 1 }, { "seat": 1, "delta": 0, "score": 20, "rank": 2 }, { "seat": 2, "delta": 0, "score": 10, "rank": 3 } ], "leadChange": false } } },
+
+    { "label": "music-q" },
+    { "delayMs": 800, "send": { "type": "phase.changed", "data": { "phase": "buzzer.presenting", "deadline": null } } },
+    { "delayMs": 100, "send": { "type": "question.presented", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": { "question": {
+      "id": "q-av-02", "kind": "av", "number": 5, "act": 2, "indexInAct": 2, "category": "Midnight Concert",
+      "text": "What's the title of this piece?", "textHidden": false, "choices": null,
+      "media": { "assetId": "a-3f9c1d2e7b40", "mediaType": "audio" }, "hintLevel": 0, "maxHintLevel": 2 } } }, "note": "The asset carries no answer clue (no title, no composer). Staging: gramophone" },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } }, "note": "MC: Let's have a listen" },
+    { "delayMs": 2200, "send": { "type": "mc.status", "data": { "status": "idle" } }, "note": "After the MC voice has actually finished playing. The engine keeps the mic closed" },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "buzzer.media", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "buzzer.armed", "data": { "questionId": "q-av-02" } } },
+    { "delayMs": 0, "send": { "type": "av.play", "data": { "assetId": "a-3f9c1d2e7b40", "level": 0, "startSec": 12, "endSec": 20 } } },
+    { "delayMs": 4300, "send": { "type": "buzzer.pressed", "data": { "seat": 1, "mediaInterrupted": true, "mcInterrupted": false } }, "note": "The stage stops the music at once" },
+    { "delayMs": 0, "await": "stage.media_ended", "timeoutMs": 800, "note": "The answer mic opens only after reason=interrupted is confirmed" },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.answering", "deadline": 1761300312000 } } },
+    { "delayMs": 300, "send": { "type": "mc.status", "data": { "status": "listening" } } },
+    { "delayMs": 2000, "send": { "type": "buzzer.answer_heard", "data": { "seat": 1, "text": "Moonlight Sonata" } } },
+    { "delayMs": 300, "send": { "type": "phase.changed", "data": { "phase": "buzzer.judging", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "buzzer.judged", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": { "seat": 1, "correct": false, "lockedOut": [1] } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.open", "deadline": 1761300322000 } } },
+    { "delayMs": 6000, "send": { "type": "phase.changed", "data": { "phase": "buzzer.hint", "deadline": null } }, "note": "Nobody left gets it → hint" },
+    { "delayMs": 0, "send": { "type": "av.hint", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": { "level": 1, "media": { "assetId": "a-3f9c1d2e7b40", "mediaType": "audio" } } }, "note": "The gramophone arm swings back toward the start. Another try" },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 2000, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "buzzer.media", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "buzzer.armed", "data": { "questionId": "q-av-02" } } },
+    { "delayMs": 0, "send": { "type": "av.play", "data": { "assetId": "a-3f9c1d2e7b40", "level": 1, "startSec": 0, "endSec": 16 } } },
+    { "delayMs": 0, "await": "stage.media_ended", "timeoutMs": 20000, "note": "Played to the end (reason=ended)" },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.open", "deadline": 1761300350000 } } },
+    { "delayMs": 1200, "send": { "type": "buzzer.pressed", "data": { "seat": 0, "mediaInterrupted": false, "mcInterrupted": false } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "buzzer.answering", "deadline": 1761300362000 } } },
+    { "delayMs": 2000, "send": { "type": "buzzer.answer_heard", "data": { "seat": 0, "text": "Danse Macabre" } } },
+    { "delayMs": 300, "send": { "type": "buzzer.judged", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": { "seat": 0, "correct": true, "lockedOut": [1] } } },
+    { "delayMs": 0, "send": { "type": "answer.revealed", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": {
+      "questionId": "q-av-02", "answer": "Danse Macabre", "answerText": "Saint-Saëns, Danse Macabre",
+      "results": [ { "seat": 1, "correct": false }, { "seat": 0, "correct": true } ],
+      "credit": { "title": "Danse macabre", "author": "Camille Saint-Saëns", "performer": "(example) name the actual recording performer", "license": "(example) CC0 or public-domain recordings only", "source": "https://example.invalid/recording" } } }, "note": "Title and composer are first sent at the reveal moment" },
+    { "delayMs": 0, "send": { "type": "score.settled", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": {
+      "deltas": [ { "seat": 0, "delta": 20, "score": 70, "rank": 1 }, { "seat": 1, "delta": 0, "score": 20, "rank": 2 }, { "seat": 2, "delta": 0, "score": 10, "rank": 3 } ], "leadChange": false } } }
+  ]
+}

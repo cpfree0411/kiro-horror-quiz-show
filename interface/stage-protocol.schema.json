@@ -1,0 +1,2970 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiro-horror-quiz-show.local/schema/stage-protocol.schema.json",
+  "title": "Kiro Horror Quiz Show — Stage protocol khqs.stage/1",
+  "description": "Engine (server) ↔ stage (main screen) WebSocket messages. The root validates one message. Scenario files use #/$defs/scenario.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/engineMessageWire"
+    },
+    {
+      "$ref": "#/$defs/stageMessage"
+    }
+  ],
+  "$defs": {
+    "seatIndex": {
+      "type": "integer",
+      "enum": [
+        0,
+        1,
+        2
+      ],
+      "description": "Three fixed seats. 0=left, 1=middle, 2=right"
+    },
+    "oxChoice": {
+      "enum": [
+        "O",
+        "X"
+      ]
+    },
+    "finalChoice": {
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ]
+    },
+    "fanType": {
+      "enum": [
+        "vampire",
+        "sack",
+        "bolt",
+        "moth",
+        "fish",
+        "mummy",
+        "crone",
+        "tophat_skull"
+      ],
+      "description": "Monster fan puppet type. Assigned by the engine at join and fixed for the game"
+    },
+    "player": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12
+        },
+        "fanType": {
+          "$ref": "#/$defs/fanType"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Ties share a rank"
+        },
+        "connected": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "fanType",
+        "score",
+        "rank",
+        "connected"
+      ],
+      "additionalProperties": false
+    },
+    "seat": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "status": {
+              "const": "occupied"
+            },
+            "player": {
+              "$ref": "#/$defs/player"
+            }
+          },
+          "required": [
+            "seat",
+            "status",
+            "player"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "status": {
+              "const": "vacant"
+            },
+            "player": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "seat",
+            "status",
+            "player"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "seats": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/seat"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "phase": {
+      "enum": [
+        "lobby",
+        "opening",
+        "act_intro",
+        "ox.presenting",
+        "ox.answering",
+        "ox.revealing_choices",
+        "ox.betrayal",
+        "ox.suspense",
+        "ox.revealing_answer",
+        "ox.settling",
+        "buzzer.presenting",
+        "buzzer.reading",
+        "buzzer.open",
+        "buzzer.media",
+        "buzzer.answering",
+        "buzzer.judging",
+        "buzzer.hint",
+        "buzzer.suspense",
+        "buzzer.revealing_answer",
+        "buzzer.settling",
+        "final.intro",
+        "final.category",
+        "final.betting",
+        "final.question",
+        "final.answering",
+        "final.revealing_choices",
+        "final.revealing_bets",
+        "final.suspense",
+        "final.revealing_answer",
+        "final.settling",
+        "finale.winner",
+        "finale.curtain",
+        "paused",
+        "ended"
+      ]
+    },
+    "gate": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^g-[0-9]+$"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 500,
+          "maximum": 90000,
+          "description": "Only the opening is long (about 50 s); the rest are mostly 5-12 s"
+        }
+      },
+      "required": [
+        "id",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    },
+    "revealSpec": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "tiles",
+            "blur",
+            "zoom",
+            "silhouette",
+            "full"
+          ]
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "mode",
+        "amount"
+      ],
+      "additionalProperties": false
+    },
+    "mediaRef": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^a-[0-9a-f]{8,32}$",
+          "description": "Opaque id. No names that hint at the answer"
+        },
+        "mediaType": {
+          "enum": [
+            "image",
+            "audio"
+          ]
+        },
+        "reveal": {
+          "$ref": "#/$defs/revealSpec"
+        }
+      },
+      "required": [
+        "assetId",
+        "mediaType"
+      ],
+      "additionalProperties": false
+    },
+    "question": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^q-[A-Za-z0-9-]+$"
+        },
+        "kind": {
+          "enum": [
+            "ox",
+            "buzzer",
+            "av",
+            "final"
+          ]
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "description": "Question number in the whole game (1-8)"
+        },
+        "act": {
+          "enum": [
+            1,
+            2,
+            3
+          ]
+        },
+        "indexInAct": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "description": "Position within the act"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "textHidden": {
+          "type": "boolean",
+          "description": "true: the info board shows no text until the reading ends (text is null too)"
+        },
+        "choices": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "media": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/mediaRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hintLevel": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxHintLevel": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "number",
+        "act",
+        "indexInAct",
+        "category",
+        "text",
+        "textHidden",
+        "choices",
+        "media",
+        "hintLevel",
+        "maxHintLevel"
+      ],
+      "additionalProperties": false
+    },
+    "seatList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/seatIndex"
+      },
+      "uniqueItems": true,
+      "maxItems": 3
+    },
+    "oxPick": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "$ref": "#/$defs/seatIndex"
+        },
+        "choice": {
+          "$ref": "#/$defs/oxChoice"
+        }
+      },
+      "required": [
+        "seat",
+        "choice"
+      ],
+      "additionalProperties": false
+    },
+    "finalPick": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "$ref": "#/$defs/seatIndex"
+        },
+        "choice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/finalChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "seat",
+        "choice"
+      ],
+      "additionalProperties": false
+    },
+    "betReveal": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "$ref": "#/$defs/seatIndex"
+        },
+        "bet": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allIn": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "seat",
+        "bet",
+        "allIn"
+      ],
+      "additionalProperties": false
+    },
+    "betrayalState": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "$ref": "#/$defs/seatIndex"
+        },
+        "selection": {
+          "enum": [
+            "lowest",
+            "tied_random"
+          ],
+          "description": "tied_random: picked at random among those tied for the lowest score. Never say 'last place' on screen or in speech"
+        },
+        "status": {
+          "enum": [
+            "offered",
+            "listening",
+            "decided"
+          ]
+        },
+        "from": {
+          "$ref": "#/$defs/oxChoice"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/oxChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "seat",
+        "selection",
+        "status",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "roundOx": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "ox"
+        },
+        "submitted": {
+          "$ref": "#/$defs/seatList"
+        },
+        "revealedChoices": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/oxPick"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unanimousStreak": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "betrayal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/betrayalState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "submitted",
+        "revealedChoices",
+        "unanimousStreak",
+        "betrayal"
+      ],
+      "additionalProperties": false
+    },
+    "roundBuzzer": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "buzzer"
+        },
+        "buzzerOpen": {
+          "type": "boolean"
+        },
+        "holder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/seatIndex"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lockedOut": {
+          "$ref": "#/$defs/seatList"
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seat": {
+                "$ref": "#/$defs/seatIndex"
+              },
+              "correct": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "seat",
+              "correct"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "mediaPlaying": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "buzzerOpen",
+        "holder",
+        "lockedOut",
+        "attempts",
+        "mediaPlaying"
+      ],
+      "additionalProperties": false
+    },
+    "roundFinal": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "final"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "betPlaced": {
+          "$ref": "#/$defs/seatList"
+        },
+        "answerPlaced": {
+          "$ref": "#/$defs/seatList"
+        },
+        "revealedChoices": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/finalPick"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revealedBets": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/betReveal"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "category",
+        "betPlaced",
+        "answerPlaced",
+        "revealedChoices",
+        "revealedBets"
+      ],
+      "additionalProperties": false
+    },
+    "round": {
+      "anyOf": [
+        {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/roundOx"
+            },
+            {
+              "$ref": "#/$defs/roundBuzzer"
+            },
+            {
+              "$ref": "#/$defs/roundFinal"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "result": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "$ref": "#/$defs/seatIndex"
+        },
+        "correct": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "seat",
+        "correct"
+      ],
+      "additionalProperties": false
+    },
+    "scoreDelta": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "$ref": "#/$defs/seatIndex"
+        },
+        "delta": {
+          "type": "integer"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "seat",
+        "delta",
+        "score",
+        "rank"
+      ],
+      "additionalProperties": false
+    },
+    "credit": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "performer": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "license"
+      ],
+      "additionalProperties": false
+    },
+    "standing": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "$ref": "#/$defs/seatIndex"
+        },
+        "playerId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12
+        },
+        "fanType": {
+          "$ref": "#/$defs/fanType"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "winner": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "seat",
+        "playerId",
+        "name",
+        "fanType",
+        "score",
+        "rank",
+        "winner"
+      ],
+      "additionalProperties": false
+    },
+    "assetEntry": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^a-[0-9a-f]{8,32}$"
+        },
+        "mediaType": {
+          "enum": [
+            "image",
+            "audio"
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "durationSec": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "assetId",
+        "mediaType",
+        "bytes"
+      ],
+      "additionalProperties": false
+    },
+    "streamFields": {
+      "type": "object",
+      "properties": {
+        "proto": {
+          "const": "khqs.stage/1"
+        },
+        "type": {
+          "type": "string"
+        },
+        "sseq": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Stage stream sequence. +1 for every message sent to the stage channel in this game, no gaps"
+        },
+        "at": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "server epoch milliseconds"
+        },
+        "data": {
+          "type": "object"
+        },
+        "gate": {
+          "$ref": "#/$defs/gate"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    "ev:seat.joined": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "seat.joined"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "player": {
+              "$ref": "#/$defs/player"
+            }
+          },
+          "required": [
+            "seat",
+            "player"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:seat.left": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "seat.left"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            }
+          },
+          "required": [
+            "seat"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:seat.connection": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "seat.connection"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "connected": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "seat",
+            "connected"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:show.opening": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "show.opening"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seats": {
+              "$ref": "#/$defs/seats"
+            },
+            "mode": {
+              "enum": [
+                "solo",
+                "competitive"
+              ]
+            }
+          },
+          "required": [
+            "seats",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:act.started": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "act.started"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "act": {
+              "enum": [
+                1,
+                2,
+                3
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "questionCount": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "assets": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/assetEntry"
+              }
+            }
+          },
+          "required": [
+            "act",
+            "title",
+            "questionCount",
+            "assets"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:phase.changed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "phase.changed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "$ref": "#/$defs/phase"
+            },
+            "deadline": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "server epoch milliseconds"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "phase",
+            "deadline"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:mc.status": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "mc.status"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "idle",
+                "speaking",
+                "listening",
+                "thinking"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:question.presented": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "question.presented"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "question": {
+              "$ref": "#/$defs/question"
+            }
+          },
+          "required": [
+            "question"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "question": {
+                    "properties": {
+                      "kind": {
+                        "const": "buzzer"
+                      }
+                    }
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "question": {
+                    "properties": {
+                      "textHidden": {
+                        "const": true
+                      },
+                      "text": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              },
+              "description": "A buzzer question's text is not sent until the reading ends"
+            }
+          ]
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:question.text_revealed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "question.text_revealed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "questionId": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "questionId",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:ox.submitted": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "ox.submitted"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            }
+          },
+          "required": [
+            "seat"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:ox.choices_revealed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "ox.choices_revealed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "choices": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/oxPick"
+              },
+              "minItems": 1,
+              "maxItems": 3
+            }
+          },
+          "required": [
+            "choices"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:ox.unanimous": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "ox.unanimous"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "choice": {
+              "$ref": "#/$defs/oxChoice"
+            },
+            "streak": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "choice",
+            "streak"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:betrayal.offered": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "betrayal.offered"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "selection": {
+              "enum": [
+                "lowest",
+                "tied_random"
+              ]
+            },
+            "currentChoice": {
+              "$ref": "#/$defs/oxChoice"
+            },
+            "tiedSeats": {
+              "$ref": "#/$defs/seatList"
+            }
+          },
+          "required": [
+            "seat",
+            "selection",
+            "currentChoice",
+            "tiedSeats"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:betrayal.listening": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "betrayal.listening"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            }
+          },
+          "required": [
+            "seat"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:betrayal.decided": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "betrayal.decided"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "from": {
+              "$ref": "#/$defs/oxChoice"
+            },
+            "to": {
+              "$ref": "#/$defs/oxChoice"
+            },
+            "changed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "seat",
+            "from",
+            "to",
+            "changed"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:answer.suspense": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "answer.suspense"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "questionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "questionId"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:answer.revealed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "answer.revealed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "questionId": {
+              "type": "string"
+            },
+            "answer": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/oxChoice"
+                },
+                {
+                  "$ref": "#/$defs/finalChoice"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "answerText": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "results": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/result"
+              }
+            },
+            "credit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/credit"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "questionId",
+            "answer",
+            "answerText",
+            "results",
+            "credit"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:score.settled": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "score.settled"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "deltas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/scoreDelta"
+              },
+              "maxItems": 3
+            },
+            "leadChange": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "deltas",
+            "leadChange"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:buzzer.armed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "buzzer.armed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "questionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "questionId"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:buzzer.pressed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "buzzer.pressed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "mediaInterrupted": {
+              "type": "boolean"
+            },
+            "mcInterrupted": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "seat",
+            "mediaInterrupted",
+            "mcInterrupted"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:buzzer.answer_heard": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "buzzer.answer_heard"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "seat",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:buzzer.judged": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "buzzer.judged"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "correct": {
+              "type": "boolean"
+            },
+            "lockedOut": {
+              "$ref": "#/$defs/seatList"
+            }
+          },
+          "required": [
+            "seat",
+            "correct",
+            "lockedOut"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:av.play": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "av.play"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "assetId": {
+              "type": "string",
+              "pattern": "^a-[0-9a-f]{8,32}$"
+            },
+            "level": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "startSec": {
+              "type": "number",
+              "minimum": 0
+            },
+            "endSec": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "assetId",
+            "level",
+            "startSec",
+            "endSec"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:av.hint": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "av.hint"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "media": {
+              "$ref": "#/$defs/mediaRef"
+            }
+          },
+          "required": [
+            "level",
+            "media"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:final.category": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "final.category"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "category"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:final.bet_placed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "final.bet_placed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            }
+          },
+          "required": [
+            "seat"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:final.bets_locked": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "final.bets_locked"
+        },
+        "data": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:final.answer_placed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "final.answer_placed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            }
+          },
+          "required": [
+            "seat"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:final.answers_locked": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "final.answers_locked"
+        },
+        "data": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:final.choices_revealed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "final.choices_revealed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "choices": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/finalPick"
+              },
+              "minItems": 1,
+              "maxItems": 3
+            }
+          },
+          "required": [
+            "choices"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:final.bet_revealed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "final.bet_revealed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "$ref": "#/$defs/seatIndex"
+            },
+            "bet": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "allIn": {
+              "type": "boolean"
+            },
+            "remaining": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "seat",
+            "bet",
+            "allIn",
+            "remaining"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:finale.winner": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "finale.winner"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "winners": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/seatIndex"
+              },
+              "minItems": 1
+            },
+            "tie": {
+              "type": "boolean"
+            },
+            "finalScores": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/scoreDelta"
+              }
+            }
+          },
+          "required": [
+            "winners",
+            "tie",
+            "finalScores"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:finale.results": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "finale.results"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "enum": [
+                "solo",
+                "competitive"
+              ]
+            },
+            "winners": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/seatIndex"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tie": {
+              "type": "boolean"
+            },
+            "standings": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 3,
+              "items": {
+                "$ref": "#/$defs/standing"
+              },
+              "description": "Ascending rank (ties by seat number). The stage finale is drawn from this array alone"
+            }
+          },
+          "required": [
+            "mode",
+            "winners",
+            "tie",
+            "standings"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unevaluatedProperties": false,
+      "required": [
+        "gate"
+      ],
+      "description": "Gate event: the stage sends stage.beat_done when its animation ends"
+    },
+    "ev:mc.caption": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "mc.caption"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "utteranceId": {
+              "type": "string",
+              "pattern": "^u-[0-9]+$",
+              "description": "One MC utterance. A later message with the same id replaces the earlier text"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "MC sentence heard so far (cumulative). The engine filters out unrevealed answers and hidden text"
+            },
+            "final": {
+              "type": "boolean",
+              "description": "true: this utterance is complete"
+            }
+          },
+          "required": [
+            "utteranceId",
+            "text",
+            "final"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:game.paused": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "game.paused"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "enum": [
+                "host",
+                "mc_recovery",
+                "stage_lost",
+                "engine"
+              ]
+            }
+          },
+          "required": [
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:game.resumed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "game.resumed"
+        },
+        "data": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:game.ended": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "game.ended"
+        },
+        "data": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "gate": false
+      },
+      "unevaluatedProperties": false
+    },
+    "ev:snapshot": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/streamFields"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "snapshot"
+        },
+        "gate": false,
+        "data": {
+          "type": "object",
+          "properties": {
+            "game": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "mode": {
+                  "enum": [
+                    "solo",
+                    "competitive"
+                  ]
+                },
+                "act": {
+                  "enum": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4
+                  ]
+                },
+                "phase": {
+                  "$ref": "#/$defs/phase"
+                },
+                "phaseStartedAt": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "server epoch milliseconds"
+                },
+                "deadline": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "server epoch milliseconds"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "questionNo": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "questionTotal": {
+                  "const": 8
+                }
+              },
+              "required": [
+                "id",
+                "mode",
+                "act",
+                "phase",
+                "phaseStartedAt",
+                "deadline",
+                "questionNo",
+                "questionTotal"
+              ],
+              "additionalProperties": false
+            },
+            "seats": {
+              "$ref": "#/$defs/seats"
+            },
+            "question": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/question"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "round": {
+              "$ref": "#/$defs/round"
+            },
+            "mc": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "enum": [
+                    "idle",
+                    "speaking",
+                    "listening",
+                    "thinking"
+                  ]
+                }
+              },
+              "required": [
+                "status"
+              ],
+              "additionalProperties": false
+            },
+            "openGate": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^g-[0-9]+$"
+                    },
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "revealedAnswer": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "game",
+            "seats",
+            "question",
+            "round",
+            "mc",
+            "openGate",
+            "revealedAnswer"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "description": "Full current state. sseq means 'the stream up to this point' and is not incremented (resend reference point).",
+      "unevaluatedProperties": false
+    },
+    "control:pong": {
+      "type": "object",
+      "properties": {
+        "proto": {
+          "const": "khqs.stage/1"
+        },
+        "type": {
+          "const": "pong"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "clientTime": {
+              "type": "number"
+            },
+            "serverTime": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "server epoch milliseconds"
+            }
+          },
+          "required": [
+            "clientTime",
+            "serverTime"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "proto",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "control:error": {
+      "type": "object",
+      "properties": {
+        "proto": {
+          "const": "khqs.stage/1"
+        },
+        "type": {
+          "const": "error"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "proto",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "engineStreamMessage": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ev:snapshot"
+        },
+        {
+          "$ref": "#/$defs/ev:seat.joined"
+        },
+        {
+          "$ref": "#/$defs/ev:seat.left"
+        },
+        {
+          "$ref": "#/$defs/ev:seat.connection"
+        },
+        {
+          "$ref": "#/$defs/ev:show.opening"
+        },
+        {
+          "$ref": "#/$defs/ev:act.started"
+        },
+        {
+          "$ref": "#/$defs/ev:phase.changed"
+        },
+        {
+          "$ref": "#/$defs/ev:mc.status"
+        },
+        {
+          "$ref": "#/$defs/ev:question.presented"
+        },
+        {
+          "$ref": "#/$defs/ev:question.text_revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:ox.submitted"
+        },
+        {
+          "$ref": "#/$defs/ev:ox.choices_revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:ox.unanimous"
+        },
+        {
+          "$ref": "#/$defs/ev:betrayal.offered"
+        },
+        {
+          "$ref": "#/$defs/ev:betrayal.listening"
+        },
+        {
+          "$ref": "#/$defs/ev:betrayal.decided"
+        },
+        {
+          "$ref": "#/$defs/ev:answer.suspense"
+        },
+        {
+          "$ref": "#/$defs/ev:answer.revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:score.settled"
+        },
+        {
+          "$ref": "#/$defs/ev:buzzer.armed"
+        },
+        {
+          "$ref": "#/$defs/ev:buzzer.pressed"
+        },
+        {
+          "$ref": "#/$defs/ev:buzzer.answer_heard"
+        },
+        {
+          "$ref": "#/$defs/ev:buzzer.judged"
+        },
+        {
+          "$ref": "#/$defs/ev:av.play"
+        },
+        {
+          "$ref": "#/$defs/ev:av.hint"
+        },
+        {
+          "$ref": "#/$defs/ev:final.category"
+        },
+        {
+          "$ref": "#/$defs/ev:final.bet_placed"
+        },
+        {
+          "$ref": "#/$defs/ev:final.bets_locked"
+        },
+        {
+          "$ref": "#/$defs/ev:final.answer_placed"
+        },
+        {
+          "$ref": "#/$defs/ev:final.answers_locked"
+        },
+        {
+          "$ref": "#/$defs/ev:final.choices_revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:final.bet_revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:finale.winner"
+        },
+        {
+          "$ref": "#/$defs/ev:finale.results"
+        },
+        {
+          "$ref": "#/$defs/ev:mc.caption"
+        },
+        {
+          "$ref": "#/$defs/ev:game.paused"
+        },
+        {
+          "$ref": "#/$defs/ev:game.resumed"
+        },
+        {
+          "$ref": "#/$defs/ev:game.ended"
+        }
+      ]
+    },
+    "engineMessage": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ev:snapshot"
+        },
+        {
+          "$ref": "#/$defs/ev:seat.joined"
+        },
+        {
+          "$ref": "#/$defs/ev:seat.left"
+        },
+        {
+          "$ref": "#/$defs/ev:seat.connection"
+        },
+        {
+          "$ref": "#/$defs/ev:show.opening"
+        },
+        {
+          "$ref": "#/$defs/ev:act.started"
+        },
+        {
+          "$ref": "#/$defs/ev:phase.changed"
+        },
+        {
+          "$ref": "#/$defs/ev:mc.status"
+        },
+        {
+          "$ref": "#/$defs/ev:question.presented"
+        },
+        {
+          "$ref": "#/$defs/ev:question.text_revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:ox.submitted"
+        },
+        {
+          "$ref": "#/$defs/ev:ox.choices_revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:ox.unanimous"
+        },
+        {
+          "$ref": "#/$defs/ev:betrayal.offered"
+        },
+        {
+          "$ref": "#/$defs/ev:betrayal.listening"
+        },
+        {
+          "$ref": "#/$defs/ev:betrayal.decided"
+        },
+        {
+          "$ref": "#/$defs/ev:answer.suspense"
+        },
+        {
+          "$ref": "#/$defs/ev:answer.revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:score.settled"
+        },
+        {
+          "$ref": "#/$defs/ev:buzzer.armed"
+        },
+        {
+          "$ref": "#/$defs/ev:buzzer.pressed"
+        },
+        {
+          "$ref": "#/$defs/ev:buzzer.answer_heard"
+        },
+        {
+          "$ref": "#/$defs/ev:buzzer.judged"
+        },
+        {
+          "$ref": "#/$defs/ev:av.play"
+        },
+        {
+          "$ref": "#/$defs/ev:av.hint"
+        },
+        {
+          "$ref": "#/$defs/ev:final.category"
+        },
+        {
+          "$ref": "#/$defs/ev:final.bet_placed"
+        },
+        {
+          "$ref": "#/$defs/ev:final.bets_locked"
+        },
+        {
+          "$ref": "#/$defs/ev:final.answer_placed"
+        },
+        {
+          "$ref": "#/$defs/ev:final.answers_locked"
+        },
+        {
+          "$ref": "#/$defs/ev:final.choices_revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:final.bet_revealed"
+        },
+        {
+          "$ref": "#/$defs/ev:finale.winner"
+        },
+        {
+          "$ref": "#/$defs/ev:finale.results"
+        },
+        {
+          "$ref": "#/$defs/ev:mc.caption"
+        },
+        {
+          "$ref": "#/$defs/ev:game.paused"
+        },
+        {
+          "$ref": "#/$defs/ev:game.resumed"
+        },
+        {
+          "$ref": "#/$defs/ev:game.ended"
+        },
+        {
+          "$ref": "#/$defs/control:pong"
+        },
+        {
+          "$ref": "#/$defs/control:error"
+        }
+      ],
+      "description": "Engine → stage. Stream messages carry sseq/at; control messages (pong, error) have no sseq"
+    },
+    "engineMessageWire": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/engineMessage"
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "pong",
+                  "error"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "proto"
+            ]
+          },
+          "else": {
+            "required": [
+              "proto",
+              "sseq",
+              "at"
+            ]
+          }
+        }
+      ]
+    },
+    "st:hello": {
+      "type": "object",
+      "properties": {
+        "proto": {
+          "const": "khqs.stage/1"
+        },
+        "type": {
+          "const": "stage.hello"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "role": {
+              "enum": [
+                "primary",
+                "viewer"
+              ],
+              "description": "Only the primary's gate replies count"
+            },
+            "stageVersion": {
+              "type": "string"
+            },
+            "lastSseq": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "clientTime": {
+              "type": "number"
+            },
+            "beats": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "description": "Event type → expected animation length (ms)"
+            }
+          },
+          "required": [
+            "role",
+            "stageVersion",
+            "lastSseq",
+            "clientTime",
+            "beats"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "proto",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "st:beat_done": {
+      "type": "object",
+      "properties": {
+        "proto": {
+          "const": "khqs.stage/1"
+        },
+        "type": {
+          "const": "stage.beat_done"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "gate": {
+              "type": "string",
+              "pattern": "^g-[0-9]+$"
+            },
+            "sseq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "skipped": {
+              "type": "boolean",
+              "description": "true if it jumped straight to the rest pose"
+            }
+          },
+          "required": [
+            "gate",
+            "sseq"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "proto",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "st:need_snapshot": {
+      "type": "object",
+      "properties": {
+        "proto": {
+          "const": "khqs.stage/1"
+        },
+        "type": {
+          "const": "stage.need_snapshot"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "lastSseq": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receivedSseq": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "lastSseq",
+            "receivedSseq"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "proto",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "st:media_ready": {
+      "type": "object",
+      "properties": {
+        "proto": {
+          "const": "khqs.stage/1"
+        },
+        "type": {
+          "const": "stage.media_ready"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "assetIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "assetIds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "proto",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "st:media_ended": {
+      "type": "object",
+      "properties": {
+        "proto": {
+          "const": "khqs.stage/1"
+        },
+        "type": {
+          "const": "stage.media_ended"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "level": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reason": {
+              "enum": [
+                "ended",
+                "interrupted",
+                "error"
+              ]
+            },
+            "positionSec": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "assetId",
+            "level",
+            "reason",
+            "positionSec"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "proto",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "st:ping": {
+      "type": "object",
+      "properties": {
+        "proto": {
+          "const": "khqs.stage/1"
+        },
+        "type": {
+          "const": "stage.ping"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "clientTime": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "clientTime"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "proto",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "stageMessage": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/st:hello"
+        },
+        {
+          "$ref": "#/$defs/st:beat_done"
+        },
+        {
+          "$ref": "#/$defs/st:need_snapshot"
+        },
+        {
+          "$ref": "#/$defs/st:media_ready"
+        },
+        {
+          "$ref": "#/$defs/st:media_ended"
+        },
+        {
+          "$ref": "#/$defs/st:ping"
+        }
+      ],
+      "description": "Stage → engine"
+    },
+    "scenario": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "delayMs": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "send": {
+                    "$ref": "#/$defs/engineMessage"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "send"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "delayMs": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "await": {
+                    "enum": [
+                      "stage.media_ended",
+                      "stage.beat_done",
+                      "stage.media_ready"
+                    ]
+                  },
+                  "timeoutMs": {
+                    "type": "integer",
+                    "minimum": 100
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "await",
+                  "timeoutMs"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+$"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "name",
+        "title",
+        "steps"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

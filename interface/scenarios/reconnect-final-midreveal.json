@@ -1,0 +1,27 @@
+{
+  "$schema": "../stage-protocol.schema.json#/$defs/scenario",
+  "name": "reconnect-final-midreveal",
+  "title": "Reconnect: the stage drops and rejoins during the final bet reveal",
+  "description": "When the stage rejoins with stage.hello(lastSseq=212), the engine sends a snapshot. Picks and bets already revealed stay revealed; Mina's bet, not yet revealed, is empty. If there is an openGate, the stage draws the resting pose and immediately sends beat_done with skipped=true.",
+  "steps": [
+    { "send": { "type": "snapshot", "sseq": 214, "data": {
+      "game": { "id": "g-demo-final", "mode": "competitive", "act": 3, "phase": "final.revealing_bets", "phaseStartedAt": 1761300492000, "deadline": null, "questionNo": 8, "questionTotal": 8 },
+      "seats": [
+        { "seat": 0, "status": "occupied", "player": { "id": "p-mina", "name": "Mina", "fanType": "sack", "score": 120, "rank": 2, "connected": true } },
+        { "seat": 1, "status": "occupied", "player": { "id": "p-junho", "name": "Junho", "fanType": "bolt", "score": 200, "rank": 1, "connected": true } },
+        { "seat": 2, "status": "occupied", "player": { "id": "p-ray", "name": "Ray", "fanType": "tophat_skull", "score": 80, "rank": 3, "connected": false } }
+      ],
+      "question": { "id": "q-final-01", "kind": "final", "number": 8, "act": 3, "indexInAct": 1, "category": "Cursed Legends",
+        "text": "In Mary Shelley's novel, whose name is 'Frankenstein'?", "textHidden": false,
+        "choices": ["The monster", "The scientist who made it", "The village it was born in", "The detective chasing it"],
+        "media": null, "hintLevel": 0, "maxHintLevel": 0 },
+      "round": { "kind": "final", "category": "Cursed Legends", "betPlaced": [0, 1, 2], "answerPlaced": [0, 1, 2],
+        "revealedChoices": [ { "seat": 0, "choice": "B" }, { "seat": 1, "choice": "A" }, { "seat": 2, "choice": "B" } ],
+        "revealedBets": [ { "seat": 2, "bet": 80, "allIn": true } ] },
+      "mc": { "status": "idle" },
+      "openGate": { "id": "g-213", "type": "final.bet_revealed" },
+      "revealedAnswer": null } }, "note": "Ray's phone is disconnected (connected=false) → the fan freezes and its bulbs go dark" },
+    { "delayMs": 0, "await": "stage.beat_done", "timeoutMs": 2000, "note": "skipped=true" },
+    { "delayMs": 200, "send": { "type": "final.bet_revealed", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": { "seat": 0, "bet": 100, "allIn": false, "remaining": 20 } }, "note": "Normal play resumes from sseq 215" }
+  ]
+}

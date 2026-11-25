@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiro Horror Stage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Black+Han+Sans&family=Fredoka:wght@500;700&family=Do+Hyeon&family=Special+Elite&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="stage.css">
+</head>
+<body>
+<div id="viewport"><div id="stage" aria-label="Kiro Horror Quiz Show stage"></div></div>
+
+<aside id="log" class="hidden" aria-label="protocol log"><div class="head">khqs.stage/1 · protocol log</div><ol></ol></aside>
+
+<div id="hud">
+  <div class="group">
+    <button id="btnPlay" title="Pause / play (Space)">❚❚</button>
+    <button id="btnRestart" title="Restart (R)">↺</button>
+    <button id="btnSpeed" title="Playback speed">1×</button>
+    <button id="btnSound" title="Sound (S)">♪ Sound on</button>
+    <button id="btnLog" title="Protocol log (L)">Log</button>
+  </div>
+  <div id="acts" class="group"></div>
+  <div id="labels" class="group"></div>
+  <div class="group"><span id="phase">—</span></div>
+</div>
+
+<script src="assets/manifest.js"></script>
+<script src="scenarios.js"></script>
+<script src="sound-files.js"></script>
+<script src="sound.js"></script>
+<script src="mock-engine.js"></script>
+<script src="qr.js"></script>
+<script src="assets/opening-art.js"></script>
+<script src="stage.js"></script>
+</body>
+</html>

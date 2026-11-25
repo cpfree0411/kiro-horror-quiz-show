@@ -1,0 +1,29 @@
+{
+  "$schema": "../stage-protocol.schema.json#/$defs/scenario",
+  "name": "solo-lobby-opening",
+  "title": "Solo practice: join → opening → enter act 1",
+  "description": "One player. The two empty seats are boarded up. The engine cues the MC's first line only after the opening gate (MC_READY) closes.",
+  "steps": [
+    { "send": { "type": "snapshot", "sseq": 1, "data": {
+      "game": { "id": "g-demo-solo", "mode": "solo", "act": 0, "phase": "lobby", "phaseStartedAt": 1761300000000, "deadline": null, "questionNo": 0, "questionTotal": 8 },
+      "seats": [
+        { "seat": 0, "status": "vacant", "player": null },
+        { "seat": 1, "status": "vacant", "player": null },
+        { "seat": 2, "status": "vacant", "player": null }
+      ],
+      "question": null, "round": null, "mc": { "status": "idle" }, "openGate": null, "revealedAnswer": null } } },
+    { "delayMs": 2500, "send": { "type": "seat.joined", "data": { "seat": 1, "player": { "id": "p-mina", "name": "Mina", "fanType": "sack", "score": 0, "rank": 1, "connected": true } } }, "note": "The fan pops into the middle seat. Boards on both sides" },
+    { "delayMs": 4000, "send": { "type": "phase.changed", "data": { "phase": "opening", "deadline": null } } },
+    { "delayMs": 100, "send": { "type": "show.opening", "gate": { "id": "g-0", "timeoutMs": 60000 }, "data": {
+      "mode": "solo",
+      "seats": [
+        { "seat": 0, "status": "vacant", "player": null },
+        { "seat": 1, "status": "occupied", "player": { "id": "p-mina", "name": "Mina", "fanType": "sack", "score": 0, "rank": 1, "connected": true } },
+        { "seat": 2, "status": "vacant", "player": null }
+      ] } }, "note": "MC_READY gate: beat_done the moment the ghost stands up into the spotlight" },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } }, "note": "Now the engine cues the MC's first line" },
+    { "delayMs": 5200, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 200, "send": { "type": "phase.changed", "data": { "phase": "act_intro", "deadline": null } } },
+    { "delayMs": 100, "send": { "type": "act.started", "gate": { "id": "g-0", "timeoutMs": 8000 }, "data": { "act": 1, "title": "Act 1 · O/X", "questionCount": 3, "assets": [] } } }
+  ]
+}

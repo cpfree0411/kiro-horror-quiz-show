@@ -1,0 +1,3 @@
+# No end-of-line or text conversion anywhere. MANIFEST.sha256 covers stage/ and
+# interface/ byte for byte; a CRLF conversion would break it.
+* -text

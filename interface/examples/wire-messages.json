@@ -1,0 +1,24 @@
+{
+  "description": "Examples of messages as they travel over the real WebSocket. Engine messages are in final form, with proto, sseq, at and gate.id filled in.",
+  "engine": [
+    { "proto": "khqs.stage/1", "type": "ox.choices_revealed", "sseq": 57, "at": 1761300135210,
+      "gate": { "id": "g-57", "timeoutMs": 6000 },
+      "data": { "choices": [ { "seat": 0, "choice": "O" }, { "seat": 1, "choice": "X" } ] } },
+    { "proto": "khqs.stage/1", "type": "ox.submitted", "sseq": 55, "at": 1761300131020, "data": { "seat": 1 } },
+    { "proto": "khqs.stage/1", "type": "buzzer.pressed", "sseq": 102, "at": 1761300302110,
+      "data": { "seat": 1, "mediaInterrupted": true, "mcInterrupted": false } },
+    { "proto": "khqs.stage/1", "type": "pong", "data": { "clientTime": 51234.5, "serverTime": 1761300000123 } },
+    { "proto": "khqs.stage/1", "type": "error", "data": { "code": "unknown_gate", "message": "g-41 is not open" } }
+  ],
+  "stage": [
+    { "proto": "khqs.stage/1", "type": "stage.hello", "data": {
+      "role": "primary", "stageVersion": "stage-0.1.0", "lastSseq": 212, "clientTime": 51230.0,
+      "beats": { "ox.choices_revealed": 2600, "answer.revealed": 3200, "score.settled": 2200, "final.bet_revealed": 2400, "finale.winner": 7000 } } },
+    { "proto": "khqs.stage/1", "type": "stage.beat_done", "data": { "gate": "g-57", "sseq": 57 } },
+    { "proto": "khqs.stage/1", "type": "stage.beat_done", "data": { "gate": "g-213", "sseq": 214, "skipped": true } },
+    { "proto": "khqs.stage/1", "type": "stage.need_snapshot", "data": { "lastSseq": 98, "receivedSseq": 100 } },
+    { "proto": "khqs.stage/1", "type": "stage.media_ready", "data": { "assetIds": ["a-3f9c1d2e7b40"] } },
+    { "proto": "khqs.stage/1", "type": "stage.media_ended", "data": { "assetId": "a-3f9c1d2e7b40", "level": 0, "reason": "interrupted", "positionSec": 16.3 } },
+    { "proto": "khqs.stage/1", "type": "stage.ping", "data": { "clientTime": 51234.5 } }
+  ]
+}

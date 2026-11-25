@@ -1,0 +1,79 @@
+{
+  "$schema": "../stage-protocol.schema.json#/$defs/scenario",
+  "name": "duo-act1-ox-betrayal",
+  "title": "Duo act 1: two unanimous rounds in a row → betrayal chance → comeback",
+  "description": "Q1 and Q2 are both unanimous. The two players are tied at 10, so Junho is picked at random (selection=tied_random). Never say 'last place' on screen or in speech. Junho switches the answer and is the only one right.",
+  "steps": [
+    { "send": { "type": "snapshot", "sseq": 1, "data": {
+      "game": { "id": "g-demo-duo", "mode": "competitive", "act": 1, "phase": "act_intro", "phaseStartedAt": 1761300100000, "deadline": null, "questionNo": 0, "questionTotal": 8 },
+      "seats": [
+        { "seat": 0, "status": "occupied", "player": { "id": "p-mina", "name": "Mina", "fanType": "sack", "score": 0, "rank": 1, "connected": true } },
+        { "seat": 1, "status": "occupied", "player": { "id": "p-junho", "name": "Junho", "fanType": "bolt", "score": 0, "rank": 1, "connected": true } },
+        { "seat": 2, "status": "vacant", "player": null }
+      ],
+      "question": null, "round": null, "mc": { "status": "idle" }, "openGate": null, "revealedAnswer": null } } },
+    { "delayMs": 300, "send": { "type": "act.started", "gate": { "id": "g-0", "timeoutMs": 8000 }, "data": { "act": 1, "title": "Act 1 · O/X", "questionCount": 3, "assets": [] } } },
+
+    { "label": "q1" },
+    { "delayMs": 200, "send": { "type": "phase.changed", "data": { "phase": "ox.presenting", "deadline": null } } },
+    { "delayMs": 100, "send": { "type": "question.presented", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": { "question": {
+      "id": "q-ox-01", "kind": "ox", "number": 1, "act": 1, "indexInAct": 1, "category": "Monster Biology", "text": "An octopus has three hearts.",
+      "textHidden": false, "choices": null, "media": null, "hintLevel": 0, "maxHintLevel": 0 } } } },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 3800, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "ox.answering", "deadline": 1761300130000 } } },
+    { "delayMs": 2400, "send": { "type": "ox.submitted", "data": { "seat": 1 } }, "note": "Which side was picked is not sent" },
+    { "delayMs": 1900, "send": { "type": "ox.submitted", "data": { "seat": 0 } } },
+    { "delayMs": 400, "send": { "type": "phase.changed", "data": { "phase": "ox.revealing_choices", "deadline": null } } },
+    { "delayMs": 100, "send": { "type": "ox.choices_revealed", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": { "choices": [ { "seat": 0, "choice": "O" }, { "seat": 1, "choice": "O" } ] } } },
+    { "delayMs": 0, "send": { "type": "ox.unanimous", "data": { "choice": "O", "streak": 1 } } },
+    { "delayMs": 200, "send": { "type": "phase.changed", "data": { "phase": "ox.suspense", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "answer.suspense", "data": { "questionId": "q-ox-01" } }, "note": "Drumroll loop starts. No answer yet" },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 2600, "send": { "type": "mc.status", "data": { "status": "idle" } }, "note": "Revealed only after the MC's suspense line has actually finished playing" },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "ox.revealing_answer", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "answer.revealed", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": {
+      "questionId": "q-ox-01", "answer": "O", "answerText": "Octopuses really do have three hearts.",
+      "results": [ { "seat": 0, "correct": true }, { "seat": 1, "correct": true } ], "credit": null } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "ox.settling", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "score.settled", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": {
+      "deltas": [ { "seat": 0, "delta": 10, "score": 10, "rank": 1 }, { "seat": 1, "delta": 10, "score": 10, "rank": 1 } ], "leadChange": false } } },
+
+    { "label": "q2" },
+    { "delayMs": 800, "send": { "type": "phase.changed", "data": { "phase": "ox.presenting", "deadline": null } } },
+    { "delayMs": 100, "send": { "type": "question.presented", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": { "question": {
+      "id": "q-ox-02", "kind": "ox", "number": 2, "act": 1, "indexInAct": 2, "category": "Spooky Facts", "text": "Vampire bats really live on the blood of other animals.",
+      "textHidden": false, "choices": null, "media": null, "hintLevel": 0, "maxHintLevel": 0 } } } },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 4200, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "ox.answering", "deadline": 1761300160000 } } },
+    { "delayMs": 1500, "send": { "type": "ox.submitted", "data": { "seat": 0 } } },
+    { "delayMs": 2200, "send": { "type": "ox.submitted", "data": { "seat": 1 } } },
+    { "delayMs": 400, "send": { "type": "phase.changed", "data": { "phase": "ox.revealing_choices", "deadline": null } } },
+    { "delayMs": 100, "send": { "type": "ox.choices_revealed", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": { "choices": [ { "seat": 0, "choice": "X" }, { "seat": 1, "choice": "X" } ] } } },
+    { "delayMs": 0, "send": { "type": "ox.unanimous", "data": { "choice": "X", "streak": 2 } }, "note": "Second unanimous round in a row → betrayal chance triggers" },
+
+    { "label": "betrayal" },
+    { "delayMs": 300, "send": { "type": "phase.changed", "data": { "phase": "ox.betrayal", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "betrayal.offered", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": {
+      "seat": 1, "selection": "tied_random", "currentChoice": "X", "tiedSeats": [0, 1] } }, "note": "The spotlight sweeps the two tied seats like a roulette and stops on Junho. Never label anyone 'last place'" },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } }, "note": "MC asks why they picked X" },
+    { "delayMs": 3500, "send": { "type": "mc.status", "data": { "status": "listening" } } },
+    { "delayMs": 0, "send": { "type": "betrayal.listening", "data": { "seat": 1 } } },
+    { "delayMs": 6000, "send": { "type": "mc.status", "data": { "status": "thinking" } } },
+    { "delayMs": 900, "send": { "type": "betrayal.decided", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": { "seat": 1, "from": "X", "to": "O", "changed": true } }, "note": "The paddle flips to the other side" },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 2400, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "ox.suspense", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "answer.suspense", "data": { "questionId": "q-ox-02" } } },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 3000, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "ox.revealing_answer", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "answer.revealed", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": {
+      "questionId": "q-ox-02", "answer": "O", "answerText": "Vampire bats are mammals that live on blood alone.",
+      "results": [ { "seat": 0, "correct": false }, { "seat": 1, "correct": true } ], "credit": null } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "ox.settling", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "score.settled", "gate": { "id": "g-0", "timeoutMs": 5000 }, "data": {
+      "deltas": [ { "seat": 0, "delta": 0, "score": 10, "rank": 2 }, { "seat": 1, "delta": 10, "score": 20, "rank": 1 } ], "leadChange": true } }, "note": "The betrayal pays off → the crowd roars" }
+  ]
+}

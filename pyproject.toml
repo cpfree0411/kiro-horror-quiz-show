@@ -1,0 +1,22 @@
+[project]
+name = "kiro-horror-quiz-show"
+version = "0.0.0"
+description = "Engine, server, AI MC and integration for the Kiro Horror Quiz Show"
+requires-python = ">=3.12"
+# Runtime dependencies are added by the phase that first needs them (P2: ASGI server, P3: google-genai).
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9,<10",
+  "jsonschema>=4.26,<5",
+  # 1.64.1 matches the Chromium build already cached in /srv/workdata/browser-cache/ms-playwright
+  "playwright==1.64.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -m 'not slow'"
+markers = [
+  "slow: long browser checks (minutes); run with  scripts/test.sh -m slow",
+]

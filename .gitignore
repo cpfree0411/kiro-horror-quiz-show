@@ -1,0 +1,28 @@
+# virtualenvs (the project venv lives outside the repo, see README)
+.venv/
+venv/
+env/
+
+# caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+
+# runtime files
+*.log
+*.pid
+run/
+evidence/
+test-results/
+playwright-report/
+
+# secrets: never commit any env file or key material
+.env
+.env.*
+*.env
+*.pem
+*.key

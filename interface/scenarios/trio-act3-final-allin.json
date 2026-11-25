@@ -1,0 +1,67 @@
+{
+  "$schema": "../stage-protocol.schema.json#/$defs/scenario",
+  "name": "trio-act3-final-allin",
+  "title": "Trio final: secret bets → picks revealed → bets revealed one by one (all in) → answer → comeback win",
+  "description": "Bet amounts never reach the stage before final.bet_revealed. The engine sets the reveal order (lowest current score first, leader last).",
+  "steps": [
+    { "send": { "type": "snapshot", "sseq": 1, "data": {
+      "game": { "id": "g-demo-final", "mode": "competitive", "act": 3, "phase": "act_intro", "phaseStartedAt": 1761300400000, "deadline": null, "questionNo": 7, "questionTotal": 8 },
+      "seats": [
+        { "seat": 0, "status": "occupied", "player": { "id": "p-mina", "name": "Mina", "fanType": "sack", "score": 120, "rank": 2, "connected": true } },
+        { "seat": 1, "status": "occupied", "player": { "id": "p-junho", "name": "Junho", "fanType": "bolt", "score": 200, "rank": 1, "connected": true } },
+        { "seat": 2, "status": "occupied", "player": { "id": "p-ray", "name": "Ray", "fanType": "tophat_skull", "score": 80, "rank": 3, "connected": true } }
+      ],
+      "question": null, "round": null, "mc": { "status": "idle" }, "openGate": null, "revealedAnswer": null } } },
+    { "delayMs": 300, "send": { "type": "act.started", "gate": { "id": "g-0", "timeoutMs": 10000 }, "data": { "act": 3, "title": "FINAL BET", "questionCount": 1, "assets": [] } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "final.intro", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 4000, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "final.category", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "final.category", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": { "category": "Cursed Legends" } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "final.betting", "deadline": 1761300440000 } } },
+    { "delayMs": 3000, "send": { "type": "final.bet_placed", "data": { "seat": 2 } }, "note": "The safe locks. No amount sent" },
+    { "delayMs": 2500, "send": { "type": "final.bet_placed", "data": { "seat": 0 } } },
+    { "delayMs": 4000, "send": { "type": "final.bet_placed", "data": { "seat": 1 } } },
+    { "delayMs": 300, "send": { "type": "final.bets_locked", "data": {} } },
+    { "delayMs": 300, "send": { "type": "phase.changed", "data": { "phase": "final.question", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "question.presented", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": { "question": {
+      "id": "q-final-01", "kind": "final", "number": 8, "act": 3, "indexInAct": 1, "category": "Cursed Legends",
+      "text": "In Mary Shelley's novel, whose name is 'Frankenstein'?", "textHidden": false,
+      "choices": ["The monster", "The scientist who made it", "The village it was born in", "The detective chasing it"],
+      "media": null, "hintLevel": 0, "maxHintLevel": 0 } } } },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 5200, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "final.answering", "deadline": 1761300480000 } } },
+    { "delayMs": 4000, "send": { "type": "final.answer_placed", "data": { "seat": 0 } } },
+    { "delayMs": 1500, "send": { "type": "final.answer_placed", "data": { "seat": 2 } } },
+    { "delayMs": 3000, "send": { "type": "final.answer_placed", "data": { "seat": 1 } } },
+    { "delayMs": 300, "send": { "type": "final.answers_locked", "data": {} } },
+    { "delayMs": 300, "send": { "type": "phase.changed", "data": { "phase": "final.revealing_choices", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "final.choices_revealed", "gate": { "id": "g-0", "timeoutMs": 7000 }, "data": {
+      "choices": [ { "seat": 0, "choice": "B" }, { "seat": 1, "choice": "A" }, { "seat": 2, "choice": "B" } ] } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "final.revealing_bets", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "final.bet_revealed", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": { "seat": 2, "bet": 80, "allIn": true, "remaining": 0 } }, "note": "Ray in 3rd: all in. Drumroll → the safe bursts" },
+    { "delayMs": 0, "send": { "type": "final.bet_revealed", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": { "seat": 0, "bet": 100, "allIn": false, "remaining": 20 } } },
+    { "delayMs": 0, "send": { "type": "final.bet_revealed", "gate": { "id": "g-0", "timeoutMs": 6000 }, "data": { "seat": 1, "bet": 120, "allIn": false, "remaining": 80 } }, "note": "Leader goes last" },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "final.suspense", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "answer.suspense", "data": { "questionId": "q-final-01" } } },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 3500, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 100, "send": { "type": "phase.changed", "data": { "phase": "final.revealing_answer", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "answer.revealed", "gate": { "id": "g-0", "timeoutMs": 7000 }, "data": {
+      "questionId": "q-final-01", "answer": "B", "answerText": "Frankenstein is the surname of Victor Frankenstein, the scientist who made the monster.",
+      "results": [ { "seat": 0, "correct": true }, { "seat": 1, "correct": false }, { "seat": 2, "correct": true } ], "credit": null } } },
+    { "delayMs": 0, "send": { "type": "phase.changed", "data": { "phase": "final.settling", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "score.settled", "gate": { "id": "g-0", "timeoutMs": 7000 }, "data": {
+      "deltas": [ { "seat": 0, "delta": 100, "score": 220, "rank": 1 }, { "seat": 1, "delta": -120, "score": 80, "rank": 3 }, { "seat": 2, "delta": 80, "score": 160, "rank": 2 } ],
+      "leadChange": true } }, "note": "1st drops to 3rd, 3rd climbs to 2nd. The crowd erupts" },
+    { "delayMs": 300, "send": { "type": "phase.changed", "data": { "phase": "finale.winner", "deadline": null } } },
+    { "delayMs": 0, "send": { "type": "finale.winner", "gate": { "id": "g-0", "timeoutMs": 12000 }, "data": {
+      "winners": [0], "tie": false,
+      "finalScores": [ { "seat": 0, "delta": 0, "score": 220, "rank": 1 }, { "seat": 2, "delta": 0, "score": 160, "rank": 2 }, { "seat": 1, "delta": 0, "score": 80, "rank": 3 } ] } } },
+    { "delayMs": 0, "send": { "type": "mc.status", "data": { "status": "speaking" } } },
+    { "delayMs": 6000, "send": { "type": "mc.status", "data": { "status": "idle" } } },
+    { "delayMs": 300, "send": { "type": "phase.changed", "data": { "phase": "finale.curtain", "deadline": null } } },
+    { "delayMs": 6000, "send": { "type": "game.ended", "data": {} } }
+  ]
+}

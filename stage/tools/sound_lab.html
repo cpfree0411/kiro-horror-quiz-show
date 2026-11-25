@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>KHQS sound lab</title>
+<!-- Sound check: loads only sound.js with the stage's registry (sound-files.js). Must be served (file:// cannot fetch files).
+     ?bgm=0 sets the lobby BGM to zero volume (only the room sound such as the fluorescent tube remains) -->
+<script>window.KHQS_SOUND_BASE = '../';</script>
+<script src="../sound-files.js"></script>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.has('bgm')) KHQS_BGM.lobby.gain = +q.get('bgm');
+  // lab only: leftover candidates
+  Object.assign(OPENING_SOUND_FILES, {
+    creak_a: '../assets/sound/creak_a.ogg', creak_b: '../assets/sound/creak_b.ogg', creak_c: '../assets/sound/creak_c.ogg',
+    roll_alt: '../assets/sound/sfx_roll_alt.ogg', jingle_brass: '../assets/sound/sfx_jingle_brass.ogg',
+    sad_trombone: OPENING_SOUND_FILES.sad[0], sad_brass15: OPENING_SOUND_FILES.sad[1],
+  });
+</script>
+<script src="../sound.js"></script>
+<body style="background:#222;color:#ddd;font:16px sans-serif">
+<p>First click turns sound on (lobby scene + lobby BGM). Buttons play single cues.</p>
+<div id="b"></div>
+<script>
+  addEventListener('pointerdown', () => { Sound.unlock(); Sound.scene('lobby', .01); Sound.bgm('lobby'); }, { once: true });
+  const row = (title, items) => {
+    const d = document.createElement('p'); d.append(title + ': ');
+    items.forEach(([label, fn]) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; d.append(b, ' '); });
+    document.getElementById('b').append(d);
+  };
+  const cue = c => [c, () => Sound.cue(c)];
+  const show = fn => () => { Sound.scene('show', .05); Sound.bgm(null, { fade: .3 }); fn(); };
+  row('Lobby', ['creak_a', 'creak_b', 'creak_c', 'creak', 'tak', 'knock', 'whistleUp', 'pop', 'tick', 'ding'].map(cue));
+  row('Show', ['correct', 'dingdong', 'buzz', 'jingle', 'jingle_brass', 'applause', 'fanfare', 'sad', 'sad_trombone', 'sad_brass15', 'boo', 'aww', 'gasp', 'rollComedy', 'rollTada', 'finaleMusic', 'roll_alt', 'crash', 'stab'].map(c => [c, show(() => Sound.cue(c))]));
+  row('Lead change (synth)', [['A whistle', 'twistA'], ['B brass', 'twistB'], ['C xylophone', 'twistC'], ['first try', 'twistFull'], ['now in game', 'twist']].map(([l, c]) => [l, show(() => Sound.cue(c))]));
+  row('Act jingles (Gemini)', ['actStart', 'transBats', 'transPumpkin', 'finalBetIntro', 'leadChange'].map(c => [c, show(() => Sound.cue(c))]));
+  row('Drumroll', [
+    ['roll .9s + crash', show(() => { Sound.loop('roll', true, { dur: .9 }); setTimeout(() => { Sound.loop('roll', false); Sound.cue('crash'); }, 900); })],
+    ['roll 1.8s + crash', show(() => { Sound.loop('roll', true, { dur: 1.8 }); setTimeout(() => { Sound.loop('roll', false); Sound.cue('crash'); }, 1800); })],
+    ['roll open (8s) + crash', show(() => { Sound.loop('roll', true); setTimeout(() => { Sound.loop('roll', false); Sound.cue('crash'); }, 8000); })],
+  ]);
+  row('BGM', [
+    ['betrayal on', show(() => Sound.bgm('betrayal', { fade: .8 }))], ['betting on', show(() => Sound.bgm('betting', { fade: .8 }))], ['winner on', show(() => Sound.bgm('winner', { fade: .2 }))],
+    ['crowd murmur 9.5s', show(() => { Sound.loop('crowdMurmur', true, { swell: [.4, 8] }); setTimeout(() => Sound.loop('crowdMurmur', false), 9500); })], ['off', () => Sound.bgm(null, { fade: .5 })],
+    ['lobby (radio)', () => { Sound.scene('lobby', .05); Sound.bgm('lobby'); }],
+  ]);
+</script>
