@@ -23,16 +23,15 @@ def test_solo_lobby_opening_matches_scenario_and_greets_only_after_mc_ready():
     scn = sc.load("solo-lobby-opening")
     diffs = sc.compare(
         sim.stream, scn, ignore=("mc.status",),
-        keys={"show.opening": ["mode", "seats"], "act.started": ["act", "title", "questionCount", "assets"]},
+        keys={"show.opening": ["mode"], "act.started": ["act", "title", "questionCount", "assets"]},
         # intended: the new game opens with phase.changed lobby (sseq 1); the scenario's fan/seat differ (see below)
         skip_engine=lambda m: m["type"] == "phase.changed" and m["data"]["phase"] == "lobby",
         skip_scenario=lambda m: False,
     )
-    # the only data difference is the seat the player is given (lowest free seat, here 0; scenario shows 1)
-    assert len(diffs) == 1 and "show.opening" in diffs[0], diffs
+    assert diffs == [], diffs  # a solo player is centred (seat 1), exactly as in the scenario
     op = sim.of("show.opening")[0]
-    assert op["data"]["mode"] == "solo"
-    assert [s["status"] for s in op["data"]["seats"]] == ["occupied", "vacant", "vacant"]
+    assert op["data"]["mode"] == "solo" and op["data"]["seats"][1]["player"]["name"] == "Mina"
+    assert [s["status"] for s in op["data"]["seats"]] == ["vacant", "occupied", "vacant"]
     assert op["gate"]["timeoutMs"] == 60000
     # MC_READY: the greeting is cued only after the stage acked the opening gate
     ack_t = next(t for m, t in zip(sim.stream, sim.stream_t) if m["type"] == "show.opening") + sim.ack_ms

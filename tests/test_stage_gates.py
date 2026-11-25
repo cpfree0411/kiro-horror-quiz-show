@@ -146,3 +146,19 @@ def test_pump_keeps_running_when_every_stage_is_gone():
     sim.start()
     sim.eng.stage_disconnect("stage-1")
     assert sim.eng.next_due() is not None  # the engine still has a deadline for the outer loop to sleep on
+
+
+def test_gate_timeout_counter_and_voice_input_flag():
+    sim = manual()
+    g = open_gate(sim)
+    sim.run(g.timeout_ms + 25_100)
+    assert sim.eng.stats["gate_timeouts"] == 1
+    sim2 = new_sim(BANK, names=("Mina",), seed=3)
+    sim2.until_type("act.started")
+    assert sim2.eng.stats["gate_timeouts"] == 0  # acked gates close normally
+    from khqs.engine.core import Engine
+    from khqs.clock import FakeClock
+    import random
+    mock_like = Engine(BANK, FakeClock(), random.Random(1), mc_enabled=True, voice_input=False)
+    assert mock_like.mc_enabled and not mock_like.voice_input
+    assert not Engine(BANK, FakeClock(), random.Random(1), mc_enabled=False, voice_input=True).voice_input

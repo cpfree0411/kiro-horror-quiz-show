@@ -34,7 +34,7 @@ WebSocket server, connector, phone/pad UI, mock MC process (P2); Gemini Live (P3
 | # | Requirement |
 | --- | --- |
 | C1 | `join(name)` shall work only in the lobby. Names are trimmed, 1–12 characters, unique (case-folded, NFKC), any script, no control characters. Errors are short English uppercase strings (`THAT NAME IS TAKEN`, `HOUSE FULL`, `TYPE A NAME`, `NAME TOO LONG`, `NO NAMES LIKE THAT`). |
-| C2 | Seats are fixed 0–2; a join takes the lowest free seat; `seats` is always length 3 with vacant seats `player: null`. |
+| C2 | Seats are fixed 0–2; the first joiner takes seat 1, then 0, then 2 (a solo player is centred); `seats` is always length 3 with vacant seats `player: null`. |
 | C3 | Each player gets a different fan from `vampire`, `sack`, `bolt`, `tophat_skull`, chosen with the seeded RNG. |
 | C4 | Each player gets an opaque private credential; it shall appear in no stage message, snapshot, log or other player's view. |
 | C5 | Mode is `solo` for 1 player, `competitive` for 2–3, fixed at start. `start()` needs at least one player and lobby phase. |

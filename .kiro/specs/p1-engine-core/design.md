@@ -116,7 +116,7 @@ Gate safety = `timeoutMs + 25000` from opening. A gate with a reaction closes wh
 3. `mc.status` is ignored in comparisons; the engine drives it from playback state.
 4. The engine opens the lobby with `phase.changed lobby` (sseq 1).
 5. Scenario sample content (questions, fans) is reproduced by fixtures where the data matters.
-6. A joining player takes the lowest free seat (solo: seat 0). The solo scenario shows seat 1; the stage's own demo entry also uses the lowest free seat.
+6. Join order is seat 1, then 0, then 2 (owner decision after P1), so a solo player is centred exactly as in the solo scenario. Fan types are drawn from the seeded RNG, so the scenario's fans differ.
 7. `buzzer.judging` is sent before every `buzzer.judged` (the scenario omits it once, in its music tail), and the scenario's `lockedOut: [1]` after a hint is `[]` here because a hint resets eligibility (rules §6.1).
 8. Float seconds (`12.0`) are sent where the scenario has `12`; the same JSON number.
 9. `av` question ids are `q-av-<number>`; the scenario's `q-av-02` is a sample.

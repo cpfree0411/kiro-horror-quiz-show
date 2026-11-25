@@ -38,9 +38,9 @@ def test_final_allin_matches_scenario():
     assert sim.stream[-1]["type"] == "game.ended"
     res = sim.of("finale.results")[0]
     assert res["data"]["standings"] == [
-        {"seat": 0, "playerId": "p-1", "name": "Mina", "fanType": sim.eng.players[0].fan, "score": 220, "rank": 1, "winner": True},
+        {"seat": 0, "playerId": "p-2", "name": "Mina", "fanType": sim.eng.players[0].fan, "score": 220, "rank": 1, "winner": True},
         {"seat": 2, "playerId": "p-3", "name": "Ray", "fanType": sim.eng.players[2].fan, "score": 160, "rank": 2, "winner": False},
-        {"seat": 1, "playerId": "p-2", "name": "Junho", "fanType": sim.eng.players[1].fan, "score": 80, "rank": 3, "winner": False},
+        {"seat": 1, "playerId": "p-1", "name": "Junho", "fanType": sim.eng.players[1].fan, "score": 80, "rank": 3, "winner": False},
     ]
     assert res["data"]["mode"] == "competitive" and res["data"]["tie"] is False
 

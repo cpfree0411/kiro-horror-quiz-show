@@ -9,8 +9,12 @@ requires-python = ">=3.12"
 dependencies = []
 
 [dependency-groups]
-# Runtime dependencies are added by the phase that first needs them (P2: ASGI server, P3: google-genai).
-runtime = []
+# Runtime dependencies are added by the phase that first needs them (P2: ASGI server and WebSocket, P3: google-genai).
+runtime = [
+  "starlette>=0.40,<2",
+  "uvicorn>=0.30,<1",
+  "websockets>=13",
+]
 dev = [
   { include-group = "runtime" },
   "pytest>=9,<10",
@@ -21,8 +25,9 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["server", "tests"]
+pythonpath = ["server", "tests", "tests/server", "tests/e2e"]
 addopts = "-ra -m 'not slow'"
+filterwarnings = ["ignore:connect\\(\\) must be used as a context manager:DeprecationWarning"]
 markers = [
   "slow: long browser checks (minutes); run with  scripts/test.sh -m slow",
 ]

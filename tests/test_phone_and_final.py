@@ -38,10 +38,9 @@ def test_ox_pick_validation_lock_in_and_own_view_only():
 
 def test_picks_outside_the_answer_window_are_rejected():
     sim = new_sim(BANK, names=("Mina",), seed=3)
-    assert sim.act(0, {"type": "ox", "choice": "O"}).error == "not_now"
+    assert sim.act(1, {"type": "ox", "choice": "O"}).error == "not_now"
     sim.until_phase("ox.presenting")
-    assert sim.act(0, {"type": "ox", "choice": "O"}).error == "not_now"
-    sim.until_phase("ox.revealing_choices") if False else None
+    assert sim.act(1, {"type": "ox", "choice": "O"}).error == "not_now"
 
 
 def test_early_finish_ignores_disconnected_players_but_waits_when_nobody_is_connected():
@@ -172,10 +171,10 @@ def test_tie_for_the_win_and_shared_ranks():
 
 
 def test_solo_finale():
-    sim = final_sim(names=("Mina",), bets={0: 50}, scores={0: 60}, choices={0: "B"})
+    sim = final_sim(names=("Mina",), bets={1: 50}, scores={1: 60}, choices={1: "B"})
     sim.until_ended()
     r = sim.of("finale.results")[0]["data"]
-    assert r["mode"] == "solo" and r["winners"] == [0] and r["tie"] is False and len(r["standings"]) == 1
+    assert r["mode"] == "solo" and r["winners"] == [1] and r["tie"] is False and len(r["standings"]) == 1
     assert sim.of("show.opening")[0]["data"]["mode"] == "solo"
 
 
@@ -205,7 +204,7 @@ def test_settlement_exactly_once_per_question_and_scores_add_up():
 
 def test_points_per_kind():
     sim = new_sim(BANK, names=("Mina",), seed=2)
-    Bots(sim, ox=lambda s, q: "O", buzz=lambda q, l: 0 if q in (4, 5, 6, 7) else None,
+    Bots(sim, ox=lambda s, q: "O", buzz=lambda q, l: 1 if q in (4, 5, 6, 7) else None,
          voice=lambda q, s, n: ({4: "mirror", 5: "danse macabre", 6: "pumpkin", 7: "broomstick"}[q], "clear", True),
          bet=lambda s, sc: 10, choice=lambda s: "B")
     sim.until_ended()

@@ -251,9 +251,11 @@ class Sim:
 
 
 def new_sim(content, names=("Mina", "Junho", "Ray"), start=True, **kw):
+    """Join so that names[i] sits on seat i (2 or 3 players). One player takes the middle seat (seat 1)."""
     sim = Sim(content, **kw)
-    for n in names:
-        assert sim.join(n).ok
+    order = {1: [0], 2: [1, 0], 3: [1, 0, 2]}[len(names)]  # join order 1 -> 0 -> 2 puts names[i] on seat i
+    for i in order:
+        assert sim.join(names[i]).ok
     if start:
         assert sim.start().ok
     return sim

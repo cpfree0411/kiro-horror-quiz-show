@@ -27,10 +27,10 @@ def test_bad_names(name, err):
 def test_names_are_trimmed_unique_any_script_and_shown_as_typed():
     sim = lobby()
     assert sim.join("  Mina  ").ok
-    assert sim.eng.players[0].name == "Mina"
+    assert sim.eng.players[1].name == "Mina"  # the first joiner takes the middle seat
     assert sim.join("MINA").error == "THAT NAME IS TAKEN"  # case-folded
     assert sim.join("ＭＩＮＡ").error == "THAT NAME IS TAKEN"  # NFKC
-    assert sim.join("민아").ok and sim.eng.players[1].name == "민아"
+    assert sim.join("민아").ok and sim.eng.players[0].name == "민아"  # join order is 1, 0, 2
     assert sim.join("A" * 12).ok  # 12 is the limit
     assert sim.join("Zed").error == "HOUSE FULL"
 
@@ -64,7 +64,7 @@ def test_credentials_are_private_and_unique():
         sim.join(n)
     creds = [p.credential for p in sim.eng.players.values()]
     assert len(set(creds)) == 2 and all(creds)
-    assert sim.eng.seat_for_credential(creds[1]) == 1 and sim.eng.seat_for_credential("nope") is None
+    assert sim.eng.seat_for_credential(creds[1]) == 0 and sim.eng.seat_for_credential("nope") is None  # second joiner: seat 0
     sim.start()
     sim.until_type("act.started")
     everything = json.dumps([sim.stream, sim.snapshots, [v for _, v in sim.views], [m for _, m in sim.directs]], ensure_ascii=False)
@@ -90,7 +90,7 @@ def test_credential_tokens_do_not_come_from_the_seeded_rng():
     a = Engine(BANK, FakeClock(), random.Random(1))
     b = Engine(BANK, FakeClock(), random.Random(1))
     a.join("A"); b.join("A")
-    assert a.players[0].credential != b.players[0].credential and len(a.players[0].credential) >= 20
+    assert a.players[1].credential != b.players[1].credential and len(a.players[1].credential) >= 20
 
 
 def test_seat_joined_message_is_public_and_complete():
@@ -98,7 +98,7 @@ def test_seat_joined_message_is_public_and_complete():
     sim.join("Mina")
     m = sim.of("seat.joined")[0]
     p = m["data"]["player"]
-    assert m["data"]["seat"] == 0 and set(p) == {"id", "name", "fanType", "score", "rank", "connected"}
+    assert m["data"]["seat"] == 1 and set(p) == {"id", "name", "fanType", "score", "rank", "connected"}
     assert p["score"] == 0 and p["rank"] == 1 and p["connected"] is True
 
 

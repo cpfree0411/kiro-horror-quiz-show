@@ -30,6 +30,7 @@ PROTO = "khqs.stage/1"
 FANS = ("vampire", "sack", "bolt", "tophat_skull")  # the only four with art
 NAME_MAX = 12
 SEATS = (0, 1, 2)
+JOIN_ORDER = (1, 0, 2)  # first joiner takes the middle seat, so a solo player is centred
 HEARD_MAX = 200
 
 
@@ -62,12 +63,16 @@ class Engine:
         token_factory: Callable[[], str] | None = None,
         game_index: int = 0,
         mc_enabled: bool = True,
+        voice_input: bool | None = None,
     ) -> None:
         self.clock = clock
         self.rng = rng
         self.cfg = config or EngineConfig()
         self._token_factory = token_factory or (lambda: _secrets.token_urlsafe(16))
         self.mc_enabled = mc_enabled
+        # the MC may speak but not hear (the mock MC): the holder then gets the phone text box at once
+        self.voice_input = mc_enabled if voice_input is None else (voice_input and mc_enabled)
+        self.stats = {"gate_timeouts": 0}
         self.game_index = game_index
         self.content: GameContent = content.select(game_index, rng) if isinstance(content, ContentBank) else content
         self.game_id = f"game-{game_index + 1}"
@@ -196,6 +201,8 @@ class Engine:
         return g.acked and (g.token is None or g.token not in self._live)
 
     def close_gate(self, g: Gate) -> None:
+        if not self._gate_done(g):
+            self.stats["gate_timeouts"] += 1  # closed by the safety deadline, not by ack + reaction
         if self.gate is g:
             self.gate = None
         self._touch_all()
@@ -244,7 +251,7 @@ class Engine:
             self.emit("mc.status", {"status": status})
 
     def listen(self, seat: int, purpose: str, attempt: int, deadline: int) -> str | None:
-        if not self.mc_enabled:
+        if not self.voice_input:
             return None
         self._n_listens += 1
         lid = f"l-{self._n_listens}"
@@ -313,7 +320,7 @@ class Engine:
             return Result(False, "NO NAMES LIKE THAT")
         if any(normalize(p.name) == key for p in self.players.values()):
             return Result(False, "THAT NAME IS TAKEN")
-        free = [s for s in SEATS if s not in self.players]
+        free = [s for s in JOIN_ORDER if s not in self.players]
         if not free:
             return Result(False, "HOUSE FULL")
         seat = free[0]
@@ -375,6 +382,10 @@ class Engine:
         self._conns.pop(conn, None)
         if self.primary == conn:
             self.primary = None
+
+    def stage_roles(self) -> dict[str, str]:
+        """conn -> effective role, primary first (used to re-register sockets on a new game)."""
+        return dict(sorted(self._conns.items(), key=lambda kv: kv[1] != "primary"))
 
     def has_primary(self) -> bool:
         return self.primary is not None
@@ -678,7 +689,7 @@ class Engine:
     def begin_answer(self, r: BuzzRound, seat: int, deadline: int) -> None:
         r.answer = None
         r.failures = 0
-        r.text_box = not self.mc_enabled
+        r.text_box = not self.voice_input
         r.answer_deadline = deadline
         r.listen_attempt = 1
         r.listen_id = self.listen(seat, "answer", 1, deadline)

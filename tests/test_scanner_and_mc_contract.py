@@ -130,7 +130,7 @@ def test_partial_leading_words_of_an_answer_are_held_back():
 
 def test_player_speech_is_never_in_the_stream():
     sim = new_sim(BANK, names=("Mina",), seed=3)
-    Bots(sim, ox=lambda s, q: "O", buzz=lambda q, l: 0 if q == 4 else None,
+    Bots(sim, ox=lambda s, q: "O", buzz=lambda q, l: 1 if q == 4 else None,
          voice=lambda q, s, n: ("xyzzy plugh", "clear", True))
     sim.until_type("buzzer.judged")
     blob = json.dumps([sim.stream, sim.snapshots, sim.views], ensure_ascii=False)

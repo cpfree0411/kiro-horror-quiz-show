@@ -7,7 +7,7 @@ inclusion: always
 Chosen in P0 (see `.kiro/specs/p0-bootstrap/design.md`). The handoff leaves the stack open; this is the proven reference stack.
 
 - **Language / runtime:** Python 3.12 (`requires-python >= 3.12`), asyncio, one process, one worker, memory-only state.
-- **Server (P2):** an ASGI app (Starlette) on uvicorn, WebSocket for `/ws/stage` and the controller channel. Added in P2 with its first use.
+- **Server (P2):** Starlette on uvicorn (WebSocket via `websockets`), one process and one event loop, two listeners: stage on `127.0.0.1:18830` (everything), phones on the LAN address `:18831` (phone routes only). Run with `scripts/run.sh`.
 - **MC (P3):** `google-genai` for Gemini Live, behind a small adapter interface. A mock MC with the same playback-cursor contract is the default for tests and development.
 - **Tests:** pytest. Browser end-to-end tests use Playwright for Python, pinned to 1.64.1 to match the Chromium builds cached in `/srv/workdata/browser-cache/ms-playwright`.
 - **Layout:** `server/` holds the engine (pure, no I/O, injectable clock and RNG) and the thin adapters. `tests/` holds unit, protocol and end-to-end tests. `scripts/` holds dev helpers.

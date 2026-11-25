@@ -58,7 +58,7 @@ def test_final_windows_are_20s_each_and_end_early_when_everyone_is_in():
 
 def test_config_can_set_the_live_buzzer_window():
     sim = new_sim(BANK, names=("Mina",), seed=3, cfg=EngineConfig(buzzer_answer_ms=60_000))
-    Bots(sim, ox=lambda s, q: "O", buzz=lambda q, l: 0 if q == 4 else None)
+    Bots(sim, ox=lambda s, q: "O", buzz=lambda q, l: 1 if q == 4 else None)
     sim.until_phase("buzzer.answering")
     dl, t = deadline_of(sim, "buzzer.answering")
     assert dl == t + 60_000

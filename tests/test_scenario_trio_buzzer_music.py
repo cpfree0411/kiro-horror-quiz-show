@@ -73,7 +73,7 @@ def test_act2_matches_scenario():
         skip_scenario=lambda m: m["type"] == "phase.changed" and m["data"]["phase"] in SKIP_PHASES,
     )
     assert diffs == [], diffs
-    assert [p.score for p in sim.eng.players.values()] == [70, 20, 10]
+    assert [sim.eng.players[s].score for s in (0, 1, 2)] == [70, 20, 10]
 
 
 def test_buzzer_round_has_suspense_and_judging_before_every_verdict():

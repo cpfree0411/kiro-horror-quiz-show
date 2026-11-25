@@ -149,10 +149,10 @@ def test_no_mc_means_phone_text_only():
     sim = new_sim(BANK, names=("Mina",), seed=7, mc=False)
     Bots(sim, ox=lambda s, n: "O")
     sim.until_phase("buzzer.open")  # with no MC the reading takes no time, so buzzing starts at the open window
-    assert buzz(sim, 0).ok
-    assert sim.eng.phone_view(0)["own"]["textBox"] is True
+    assert buzz(sim, 1).ok  # a solo player sits in the middle seat
+    assert sim.eng.phone_view(1)["own"]["textBox"] is True
     assert not sim.listens and not [e for _, e, _ in sim.mc_fx if isinstance(e, (McSay, McListen))]
-    assert sim.act(0, {"type": "text_answer", "text": "mirror"}).ok
+    assert sim.act(1, {"type": "text_answer", "text": "mirror"}).ok
     sim.until_ended()
 
 
@@ -168,7 +168,7 @@ def test_reading_failsafe_moves_on_when_the_mc_never_finishes():
 
 def test_early_correct_answer_ends_the_reading_and_the_text_is_never_revealed():
     sim = at_q(names=("Mina",))
-    buzz(sim, 0)
+    buzz(sim, 1)
     voice(sim, "mirror")
     sim.until_type("score.settled", 4)
     assert not sim.of("question.text_revealed")
@@ -180,7 +180,7 @@ def test_early_correct_answer_ends_the_reading_and_the_text_is_never_revealed():
 
 def test_everyone_locked_out_still_reveals_text_after_reading_then_suspense():
     sim = at_q(names=("Mina",))
-    buzz(sim, 0)
+    buzz(sim, 1)
     voice(sim, "pillow")
     sim.until_type("question.text_revealed")
     types = [m["type"] for m in sim.stream if m["type"] != "mc.status"]
@@ -189,7 +189,7 @@ def test_everyone_locked_out_still_reveals_text_after_reading_then_suspense():
     phases = [m["data"]["phase"] for m in sim.stream if m["type"] == "phase.changed"]
     i = len(phases) - 1 - phases[::-1].index("buzzer.reading")
     assert phases[i + 1] == "buzzer.suspense"
-    assert sim.of("answer.revealed")[-1]["data"]["results"] == [{"seat": 0, "correct": False}]
+    assert sim.of("answer.revealed")[-1]["data"]["results"] == [{"seat": 1, "correct": False}]
 
 
 def test_open_window_is_15s_and_nobody_buzzing_goes_to_reveal():

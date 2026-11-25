@@ -17,6 +17,7 @@ A kitschy, cute Halloween TV quiz show hosted by a ghost MC (Gemini Live, voice)
 | --- | --- |
 | Players | 1–3 humans. No bots. No minimum of two |
 | Seats | Fixed 0–2. `seats` on the wire is always length 3; empty seats are boarded up |
+| Join order | First joiner takes the middle seat (1), then 0, then 2, so a solo player is centred |
 | Mode | 1 player = `solo` (practice). 2–3 = `competitive` |
 | Names | Unique, 1–12 characters. Any script (Korean names are fine; the stage draws them) |
 | Fan puppet | Assigned at join, fixed for the game, all different, from `vampire`, `sack`, `bolt`, `tophat_skull` (the only four with art). Seeded RNG |
@@ -52,7 +53,7 @@ The server clock owns phase start, elapsed time and deadlines (server epoch ms o
 | Music: watchdog for a missing natural end | clip length + 1 s |
 | Final betting | 20 s |
 | Final answering | 20 s |
-| Gate timeouts (wire `timeoutMs`) | opening 60 s, act 8 s, winner 12 s, results 15 s, betrayal / final reveals / category 6 s, others 5 s |
+| Gate timeouts (wire `timeoutMs`) | The table in `interface/KHQS_STAGE_INTERFACE.md` §4 is the wire truth (e.g. opening 60 s, act 8 s (act 3: 10 s), winner 12 s, results 15 s, final choices 7 s). The engine config mirrors it |
 | Engine safety per gate | `timeoutMs` + 25 s (gate closes on stage `beat_done` **and** the MC reaction finishing playback) |
 
 Client-provided `beats` are recorded but never override server limits.
