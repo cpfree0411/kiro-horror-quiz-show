@@ -35,13 +35,13 @@ class Player:
 
 
 class Show:
-    def __init__(self, pw, srv, tag: str):
+    def __init__(self, pw, srv, tag: str, extra_args=()):
         self.pw, self.srv, self.tag = pw, srv, tag
-        self.browser = pw.chromium.launch(args=LAUNCH_ARGS)
+        self.browser = pw.chromium.launch(args=[*LAUNCH_ARGS, *extra_args])
         self.errors: list[str] = []
         self.frames: list[tuple[str, dict]] = []
         self.players: list[Player] = []
-        self.stage = self._new_page(self.browser.new_context(viewport={"width": 1600, "height": 900}), "stage")
+        self.stage = self._new_page(self.browser.new_context(viewport={"width": 1600, "height": 900}, permissions=["microphone"]), "stage")
         self.ports = srv.settings
         self.acted: set = set()
         self.samples: list[dict] = []

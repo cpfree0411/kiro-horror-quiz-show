@@ -19,7 +19,7 @@ A kitschy, cute Halloween TV quiz show hosted by a ghost MC (Gemini Live, voice)
 | Seats | Fixed 0–2. `seats` on the wire is always length 3; empty seats are boarded up |
 | Join order | First joiner takes the middle seat (1), then 0, then 2, so a solo player is centred |
 | Mode | 1 player = `solo` (practice). 2–3 = `competitive` |
-| Names | Unique, 1–12 characters. Any script (Korean names are fine; the stage draws them) |
+| Names | Unique, 1–12 characters. Any script (the stage draws them as typed) |
 | Fan puppet | Assigned at join, fixed for the game, all different, from `vampire`, `sack`, `bolt`, `tophat_skull` (the only four with art). Seeded RNG |
 | Credentials | Opaque and private per player. Never on the stage channel |
 | Disconnect | Seat stays `occupied`; `seat.connection {connected:false}`. A disconnected player cannot submit until reconnected |
@@ -108,12 +108,11 @@ The secret list in interface §5 is binding. In addition:
 
 ## 9. Voice: answers, recognition, language
 
-### 9.1 Language (**NEW**, 2026-11-25)
+### 9.1 Language (owner decision, 2026-11-26: English only)
 
-- **The MC always speaks English.** All on-screen text is English.
-- **Players may answer or talk in Korean (or English).** The MC must understand Korean speech and still reply in English.
-- Player names may be Korean; the MC pronounces them as given (no translation, no nicknames).
-- The user will make a separate Korean edition later; keep the language rule in configuration/prompt, not scattered in code.
+- **The game is English only.** The MC speaks English, players speak English, all on-screen text is English. The MC does **not** need to understand Korean. (This overrides the older "players may speak Korean" notes in `interface/KHQS_STAGE_INTERFACE.md`, which is frozen and not edited; it is not a wire change.)
+- Player names may be typed in any script; the screen shows them exactly as typed, and the MC says them as given (no nicknames, no honorific suffixes).
+- Keep the language rule in configuration and the MC prompt (`server/khqs/mc/prompts.py`), not scattered in code, so another edition can swap content and prompt.
 
 ### 9.2 How a spoken answer is captured
 
@@ -122,7 +121,7 @@ Lessons from the prototype's experiments with Gemini native-audio Live:
 - Ask the model to call a tool (e.g. `report_answer`) with **`heard`** = the answer exactly as spoken, and **`recognition`** = `clear | unclear`.
 - `recognition` means "was the speech understood", **not** "was it correct". The model must not judge correctness.
 - Native-audio tool arguments were accurate for short words (6/6 in tests) while the separate input transcription (ASR) was often missing (0/6). **Do not require ASR** to accept an answer.
-- **NEW trap:** with a Korean-speaking player and an English MC, the model tends to translate. Instruct it to pass `heard` **verbatim in the language spoken** (Hangul for Korean), never translated. The engine then matches against aliases in both languages.
+- Instruct the model to pass `heard` **verbatim, exactly as spoken**, never corrected, completed or reworded toward what it thinks the answer is.
 - Require real voiced PCM evidence that the holder actually spoke (energy above a floor) before accepting a voice answer.
 - **Recognition failure ≠ wrong answer.** If `recognition` is `unclear`, or the model's wrong answer is not backed by any evidence (no voiced audio / empty transcript where one was expected), treat it as a recognition failure: ask again. After **two** failures, fall back to a text box on that player's phone. Only a supported voice answer or a phone answer is ever judged wrong.
 - Tool receipts back to the model are **silent** (do not make the MC speak because a tool returned).
@@ -135,7 +134,7 @@ Normalize (case-fold, strip spaces and punctuation, Unicode NFKC). Then:
 2. **Music question only (`kind == 'av'`):** also correct if any key of length ≥ 3 is a substring of the heard text, or if a sliding window of the heard text has `difflib.SequenceMatcher` ratio ≥ 0.8 against any key of length ≥ 4. The composer is **not** required; "Danse Macabre" alone is right, "Saint-Saëns Danse Macabre" is right, a one-syllable ASR slip is right.
 3. OX, normal buzzer and final questions: exact normalized match only.
 
-Aliases must include English **and** Korean forms (e.g. `Danse Macabre`, `죽음의 무도`; `In the Hall of the Mountain King`, `Hall of the Mountain King`, `산왕의 궁전`, `마왕의 궁전`; `Toccata and Fugue in D minor`, `토카타와 푸가`, `토카타 푸가`).
+Aliases are English (e.g. `Danse Macabre`, `Dance Macabre`; `In the Hall of the Mountain King`, `Hall of the Mountain King`; `Toccata and Fugue in D minor`, `Toccata and Fugue`). The judge still normalises any script, so older Korean aliases would keep working, but none are added.
 
 The voice adapter validates a model-proposed answer with the same function; the model's own opinion of correctness is ignored.
 
@@ -153,7 +152,7 @@ Every MC utterance that precedes a reveal (question reading, suspense line, betr
 ## 10. Content (**NEW** work)
 
 - Two question sets of eight, in English, Halloween-themed, cute not gory (no blood, no gore, no jump scares). Questions must be answerable by ear; keep spoken answers short (one to four words) for the buzzer.
-- Each question: kind, act number, category, text, answer, explanation, aliases (English + Korean where a Korean speaker might answer in Korean), choices (final only).
+- Each question: kind, act number, category, text, answer, explanation, aliases (English; include the common short forms and plain spoken variants), choices (final only).
 - Music slot: the three recordings in `media/` (30 s excerpts, tags stripped). Hint clips per level and a private clue per level. Credits exactly as in `docs/HANDOFF.md` §9.
 - Category names and question text are drawn on the stage boards: keep categories ≤ ~22 characters and OX/final text ≤ ~110 characters, choices ≤ ~40 characters, and check them on the real stage (`docs/HANDOFF.md` §7 explains how).
 

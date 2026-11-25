@@ -14,7 +14,9 @@ from ..engine.config import EngineConfig
 from ..engine.core import Engine, Result
 from ..engine.effects import (McInterrupt, McListen, McMic, McSay, McStopListen, PhoneChanged, StageBroadcast,
                               StageDirect)
+from ..mc.live import BrowserPort, LiveMc
 from ..mc.mock import MockMc
+from ..mc.transport import GeminiTransport
 from .record import Recorder
 from .settings import Settings
 
@@ -83,7 +85,12 @@ class GameHost:
         self._n_conn = 0
         self._poke = asyncio.Event()
         self._pump_task: asyncio.Task | None = None
-        self.mc = MockMc(self, settings.mock_speed)
+        self.mc_port = BrowserPort()
+        if settings.mc == "live":
+            self.mc = LiveMc(self, lambda: GeminiTransport(settings.env_file, settings.live_model, settings.live_voice, settings.live_log, "play"),
+                             self.mc_port)
+        else:
+            self.mc = MockMc(self, settings.mock_speed)
         self.recorder = Recorder(self) if settings.record else None
         self.engine = self._new_engine()
         self.flush()
@@ -94,13 +101,15 @@ class GameHost:
         seed = secrets.randbits(63) if s.seed is None else s.seed + self.game_index
         cfg = EngineConfig(buzzer_answer_ms=s.buzzer_answer_ms)
         # the mock MC speaks (tokens, durations, captions) but cannot hear: phone text box at once
-        return Engine(self.bank, self.clock, random.Random(seed), cfg, game_index=self.game_index,
-                      mc_enabled=True, voice_input=False)
+        flags = self.mc.engine_flags() if self.settings.mc == "live" else {"mc_enabled": True, "voice_input": False}
+        return Engine(self.bank, self.clock, random.Random(seed), cfg, game_index=self.game_index, **flags)
 
     def start_pump(self) -> None:
         self._pump_task = asyncio.get_running_loop().create_task(self._pump())
 
     async def stop(self) -> None:
+        if isinstance(self.mc, LiveMc):
+            await self.mc.safe_stop("server stopping")
         self.mc.cancel_all()
         if self._pump_task:
             self._pump_task.cancel()

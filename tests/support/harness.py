@@ -32,11 +32,11 @@ class SimTimeout(AssertionError):
 
 class Sim:
     def __init__(self, content, *, seed=1, mc=True, cfg=None, game_index=0, stage=True, ack_ms=300, say_ms=800,
-                 check=True, cancel_on_interrupt=True):
+                 check=True, cancel_on_interrupt=True, **engine_kw):
         self.clock = FakeClock()
         self._tok = itertools.count(1)
         self.eng = Engine(content, self.clock, random.Random(seed), cfg or EngineConfig(),
-                          token_factory=lambda: f"cred-{next(self._tok):04d}", game_index=game_index, mc_enabled=mc)
+                          token_factory=lambda: f"cred-{next(self._tok):04d}", game_index=game_index, mc_enabled=mc, **engine_kw)
         self.check = check
         self.ack_ms, self.say_ms = ack_ms, say_ms
         self.cancel_on_interrupt = cancel_on_interrupt

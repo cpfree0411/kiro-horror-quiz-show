@@ -1,6 +1,8 @@
 # Kiro Horror Quiz Show — Handoff to Kiro
 
 Status: 2026-11-25. From: the visual/sound owner. To: Kiro (engine, AI MC, multiplayer, integration).
+**Scope change (owner, 2026-11-26): the game is English only. Players speak English and the MC does not need to understand Korean.** Where older text here or in `interface/KHQS_STAGE_INTERFACE.md` says otherwise, this note wins.
+
 Read in this order: this file → `docs/GAME_RULES.md` → `interface/KHQS_STAGE_INTERFACE.md` → `interface/stage-protocol.schema.json`.
 
 ---
@@ -15,7 +17,7 @@ Read in this order: this file → `docs/GAME_RULES.md` → `interface/KHQS_STAGE
 2. The server: stage WebSocket, phone/controller WebSocket, entry API, asset route, page serving with connector injection.
 3. The connector script that plugs the real engine into the frozen stage (§5).
 4. The phone ticket hook and the phone controller UI; the on-screen pad for players without a phone.
-5. The AI MC: Gemini Live voice host (English speech, understands Korean), with a free mock MC for development.
+5. The AI MC: Gemini Live voice host (English in, English out), with a free mock MC for development.
 6. The English question bank (two sets of eight) and the music question data.
 7. Tests, a headless end-to-end driver, the run script, the README and submission notes.
 
@@ -217,11 +219,11 @@ Each phase ends with evidence: commands run, test output, and for browser phases
 - Accept: headless-browser full games with the mock MC for 1, 2 and 3 players (one using the screen pad, one phone reload mid-game) complete; stage role is `primary` and acks gates; page errors 0; `#demo` still plays as a mock on the live server; stream secrecy scan clean.
 
 **P3 — Gemini Live MC**
-- English host persona, understands Korean, replies in English; tool-based answer capture (`heard` verbatim + `recognition`); two retries then phone text box; output playback cursor gating; buzz → flush + interrupt; music → MC idle + mic closed; betrayal reason/decision by voice or phone; `mc.caption` with the secret filter; caps and no automatic reconnect; mock MC unchanged.
-- Accept: unit tests with a fake Live session; a real end-to-end smoke run (free tier, run deliberately); then the owner plays it with a real voice (Korean and English answers). Record what was and was not verified.
+- English host persona (English in, English out); tool-based answer capture (`heard` verbatim + `recognition`); two retries then phone text box; output playback cursor gating; buzz → flush + interrupt; music → MC idle + mic closed; betrayal reason/decision by voice or phone; `mc.caption` with the secret filter; caps and no automatic reconnect; mock MC unchanged.
+- Accept: unit tests with a fake Live session; a real end-to-end smoke run (free tier, run deliberately); then the owner plays it with a real voice (English answers). Record what was and was not verified.
 
 **P4 — English content**
-- Two English sets of eight (rules §10), music slot with hint clips and private clues, English + Korean aliases.
+- Two English sets of eight (rules §10), music slot with hint clips and private clues, English aliases.
 - Accept: every string checked on the real stage boards (screenshots), aliases tested with `answer_matches`.
 
 **P5 — Submission**
@@ -234,10 +236,10 @@ Each phase ends with evidence: commands run, test output, and for browser phases
 
 1. Live sends `interrupted` and then a late `turn_complete` after a barge-in. Treat as normal, not as an error.
 2. Native-audio tool args are reliable for short answers; separate ASR transcripts are often missing. Do not require ASR.
-3. The model translates Korean answers into English unless told to report `heard` verbatim.
+3. The model "helpfully" corrects or completes an answer unless told to report `heard` verbatim.
 4. The buzzer answer window must be long enough for a retry and the phone fallback; the public `deadline` must match the real window.
 5. Stage CSS `.choice { position: absolute }` leaks into any controller placed in the stage page. Scope controller styles.
 6. A second stage tab must become a `viewer`, not steal `primary`. Reconnecting the primary is an explicit operator action.
 7. Memory-only state: a server restart loses the game. Acceptable for the show; say so in the README.
-8. Names typed in Hangul get romanised when the MC speaks English. That is fine; the screen always shows the name exactly as typed. Give the MC the names as typed and forbid nicknames or honorific suffixes.
+8. Names typed in another script may be pronounced oddly. That is fine; the screen always shows the name exactly as typed. Give the MC the names as typed and forbid nicknames or honorific suffixes.
 9. Generation finished ≠ audio played. Gate reveals on the playback cursor only.

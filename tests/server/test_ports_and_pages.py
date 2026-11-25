@@ -53,7 +53,7 @@ def test_phone_port_serves_only_phone_routes_and_stage_port_serves_everything(se
         assert get(phone + path)[0] == 200, f"phone port should serve {path}"
         assert get(stage + path)[0] == 200, f"stage port should serve {path}"
     for path in STAGE_ONLY_PATHS:
-        if path in ("/ws/stage", "/api/start", "/api/reset"):
+        if path in ("/ws/stage", "/ws/mc", "/api/start", "/api/reset", "/api/mc/connect", "/api/mc/disconnect"):
             continue
         assert get(stage + path)[0] == 200, f"stage port should serve {path}"
         assert get(phone + path)[0] == 404, f"phone port must NOT serve {path}"

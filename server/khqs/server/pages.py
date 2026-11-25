@@ -6,8 +6,6 @@ import mimetypes
 import re
 from pathlib import Path
 
-from ..content.dev_bank import MEDIA_FILES
-
 WEB = Path(__file__).resolve().parent / "web"
 INDEX_ANCHOR = '<script src="mock-engine.js"></script>'
 INDEX_TAG = '<script src="/play/link.js"></script>'
@@ -75,8 +73,8 @@ def link_js(joinUrl: str, mc: str) -> bytes:
 class MediaStore:
     """Music files by opaque id. No title, file name or tag leaves the server."""
 
-    def __init__(self, media_dir: Path, mapping: dict[str, str] | None = None) -> None:
-        self.dir, self.mapping = media_dir, mapping or dict(MEDIA_FILES)
+    def __init__(self, media_dir: Path, mapping: dict[str, str]) -> None:
+        self.dir, self.mapping = media_dir, dict(mapping)
 
     def path_for(self, asset_id: str) -> Path | None:
         name = self.mapping.get(asset_id) if ASSET_ID.match(asset_id) else None

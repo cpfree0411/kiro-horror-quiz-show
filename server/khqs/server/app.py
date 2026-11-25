@@ -13,6 +13,8 @@ from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from . import pages
+from ..mc.live import LiveMc
+from ..mc.transport import LiveError
 from .host import Conn, GameHost
 from .settings import LOOPBACK_NAMES, Settings
 
@@ -26,8 +28,8 @@ NOCACHE = {"Cache-Control": "no-store"}
 
 # Route tables, used by the apps and by the port-split test.
 PHONE_PATHS = ("/ticket.html", "/phone", "/phone/phone.css", "/phone/phone.js", "/play/ticket-hook.js", "/api/join", "/ws/phone")
-STAGE_ONLY_PATHS = ("/", "/index.html", "/stage.js", "/assets/manifest.js", "/play/link.js", "/stage/assets/a-3f9c1d2e7b40",
-                    "/api/start", "/api/reset", "/ws/stage")
+STAGE_ONLY_PATHS = ("/", "/index.html", "/stage.js", "/assets/manifest.js", "/play/link.js", "/play/mc-audio.js", "/stage/assets/a-3f9c1d2e7b40",
+                    "/api/start", "/api/reset", "/api/mc/connect", "/api/mc/disconnect", "/api/mc/status", "/ws/stage", "/ws/mc")
 
 
 def _hostname(host_header: str) -> str:
@@ -49,7 +51,7 @@ def stage_request_ok(headers) -> bool:
 
 
 def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette]:
-    media = pages.MediaStore(settings.media_dir)
+    media = pages.MediaStore(settings.media_dir, {t.asset_id: t.file for t in host.bank.tracks})
     stage_dir = settings.stage_dir
     web = pages.WEB
 
@@ -143,7 +145,10 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         return Response(pages.index_html(stage_dir), media_type="text/html; charset=utf-8", headers=NOCACHE)
 
     async def link(request: Request):
-        return Response(pages.link_js(settings.join_url, "mock"), media_type="text/javascript", headers=NOCACHE)
+        return Response(pages.link_js(settings.join_url, settings.mc), media_type="text/javascript", headers=NOCACHE)
+
+    async def mc_audio_js(request: Request):
+        return FileResponse(web / "mc-audio.js", media_type="text/javascript", headers=NOCACHE)
 
     async def stage_static(request: Request):
         p = pages.static_path(stage_dir, request.path_params["path"])
@@ -160,9 +165,14 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
     def operator_ok(request: Request) -> bool:
         return stage_request_ok(request.headers) and request.headers.get("x-khqs") == "1"
 
+    def live() -> LiveMc | None:
+        return host.mc if isinstance(host.mc, LiveMc) else None
+
     async def api_start(request: Request):
         if not operator_ok(request):
             return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        if live() is not None and live().state != "online":
+            return JSONResponse({"error": "MC OFFLINE — TRY AGAIN"})
         r = host.start()
         return JSONResponse({"ok": True} if r.ok else {"error": r.error})
 
@@ -175,6 +185,69 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
             return JSONResponse({"error": "BAD REQUEST"}, status_code=400)
         r = host.reset(force)
         return JSONResponse({"ok": True} if r.ok else {"error": r.error})
+
+    async def api_mc_connect(request: Request):
+        if not operator_ok(request):
+            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        mc = live()
+        if mc is None:
+            return JSONResponse({"ok": True, "mode": "mock"})
+        try:
+            await mc.connect()  # the only way a real session starts: an explicit operator action
+        except LiveError as e:
+            return JSONResponse({"error": "MC OFFLINE — TRY AGAIN", "detail": str(e)})
+        return JSONResponse({"ok": True, "mode": "live"})
+
+    async def api_mc_disconnect(request: Request):
+        if not operator_ok(request):
+            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        if live() is not None:
+            await live().disconnect()
+        return JSONResponse({"ok": True})
+
+    async def api_mc_status(request: Request):
+        if not stage_request_ok(request.headers):
+            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        return JSONResponse(live().status() if live() else {"mode": "mock", "state": "online", "reason": "ok", "sessionsOpened": 0},
+                            headers=NOCACHE)
+
+    async def ws_mc(ws: WebSocket):
+        mc = live()
+        if mc is None or not stage_request_ok(ws.headers):
+            await ws.close(1008)
+            return
+        await ws.accept()
+        sock = Conn(ws, "mc")
+        old = host.mc_port.conn
+        host.mc_port.conn = sock
+        if old is not None:
+            old.close(4001)
+        try:
+            while True:
+                m = await ws.receive()
+                if m["type"] == "websocket.disconnect":
+                    break
+                if m.get("bytes") is not None:
+                    if len(m["bytes"]) <= 8192:
+                        await mc.on_mic(m["bytes"])
+                elif m.get("text"):
+                    try:
+                        msg = json.loads(m["text"])
+                        token = msg.get("k")
+                    except (ValueError, AttributeError):
+                        continue
+                    if msg.get("t") == "started" and isinstance(token, str):
+                        mc.on_started(token)
+                    elif msg.get("t") == "played" and isinstance(token, str):
+                        mc.on_played(token)
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+        finally:
+            if host.mc_port.conn is sock:
+                host.mc_port.conn = None
+                if mc.state == "online":
+                    await mc.safe_stop("the browser audio disconnected")
+            sock.close(1000)
 
     async def ws_stage(ws: WebSocket):
         if not stage_request_ok(ws.headers):
@@ -228,6 +301,11 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         Route("/stage/assets/{asset_id}", stage_media),
         Route("/api/start", api_start, methods=["POST"]),
         Route("/api/reset", api_reset, methods=["POST"]),
+        Route("/api/mc/connect", api_mc_connect, methods=["POST"]),
+        Route("/api/mc/disconnect", api_mc_disconnect, methods=["POST"]),
+        Route("/api/mc/status", api_mc_status),
+        WebSocketRoute("/ws/mc", ws_mc),
+        Route("/play/mc-audio.js", mc_audio_js),
         WebSocketRoute("/ws/stage", ws_stage),
         Route("/{path:path}", stage_static),  # last: frozen files by allowlist
     ]

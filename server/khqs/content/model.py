@@ -56,6 +56,7 @@ class MusicTrack:
     credit: Credit
     category: str = "Midnight Concert"
     text: str = DEFAULT_MUSIC_TEXT
+    file: str = ""  # file name under media/ (server side only; never on the wire)
 
 
 @dataclass(frozen=True)

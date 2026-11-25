@@ -1,0 +1,268 @@
+{
+  "format": "khqs.bank/1",
+  "sets": [
+    {
+      "id": "dev-a",
+      "musicPosition": 2,
+      "ox": [
+        {
+          "id": "q-ox-01",
+          "category": "Monster Biology",
+          "text": "An octopus has three hearts.",
+          "answer": "O",
+          "explanation": "Octopuses really do have three hearts."
+        },
+        {
+          "id": "q-ox-02",
+          "category": "Spooky Facts",
+          "text": "Vampire bats really live on the blood of other animals.",
+          "answer": "O",
+          "explanation": "Vampire bats are mammals that live on blood alone."
+        },
+        {
+          "id": "q-ox-03",
+          "category": "Creepy Crawlies",
+          "text": "A spider is an insect.",
+          "answer": "X",
+          "explanation": "Spiders have eight legs, so they are arachnids."
+        }
+      ],
+      "buzzers": [
+        {
+          "id": "q-bz-01",
+          "category": "Midnight Superstitions",
+          "text": "At midnight, what should you never look into before bed?",
+          "answer": "Mirror",
+          "aliases": [
+            "The mirror"
+          ],
+          "explanation": "The midnight mirror"
+        },
+        {
+          "id": "q-bz-02",
+          "category": "Autumn Harvest",
+          "text": "Which glowing fruit gets a carved smile on Halloween?",
+          "answer": "Pumpkin",
+          "aliases": [
+            "Jack-o'-lantern"
+          ],
+          "explanation": "Pumpkins become jack-o'-lanterns."
+        },
+        {
+          "id": "q-bz-03",
+          "category": "Witch's Kitchen",
+          "text": "What do witches ride through the night sky?",
+          "answer": "Broomstick",
+          "aliases": [
+            "Broom"
+          ],
+          "explanation": "A broom is the classic witch's ride."
+        }
+      ],
+      "final": {
+        "id": "q-final-01",
+        "category": "Cursed Legends",
+        "text": "In Mary Shelley's novel, whose name is 'Frankenstein'?",
+        "choices": [
+          "The monster",
+          "The scientist who made it",
+          "The village it was born in",
+          "The detective chasing it"
+        ],
+        "answer": "B",
+        "explanation": "Frankenstein is the surname of Victor Frankenstein, the scientist who made the monster."
+      }
+    },
+    {
+      "id": "dev-b",
+      "musicPosition": 3,
+      "ox": [
+        {
+          "id": "q-ox-11",
+          "category": "Bat Facts",
+          "text": "Bats are blind.",
+          "answer": "X",
+          "explanation": "Bats can see, and many see quite well."
+        },
+        {
+          "id": "q-ox-12",
+          "category": "Candle Lore",
+          "text": "A candle flame burns wax vapor.",
+          "answer": "O",
+          "explanation": "The wick draws melted wax up, and the vapor burns."
+        },
+        {
+          "id": "q-ox-13",
+          "category": "Ghost Stories",
+          "text": "A lab has confirmed that ghosts exist.",
+          "answer": "X",
+          "explanation": "No lab has ever confirmed one."
+        }
+      ],
+      "buzzers": [
+        {
+          "id": "q-bz-11",
+          "category": "Haunted Rooms",
+          "text": "What creaky thing connects the floors of a haunted house?",
+          "answer": "Staircase",
+          "aliases": [
+            "Stairs"
+          ],
+          "explanation": "Haunted houses always have creaky stairs."
+        },
+        {
+          "id": "q-bz-12",
+          "category": "Night Sounds",
+          "text": "Which animal howls at the full moon in stories?",
+          "answer": "Wolf",
+          "aliases": [
+            "Werewolf"
+          ],
+          "explanation": "The wolf howls at the moon."
+        },
+        {
+          "id": "q-bz-13",
+          "category": "Sweet Treats",
+          "text": "What sweet do children collect when trick-or-treating?",
+          "answer": "Candy",
+          "aliases": [
+            "Sweets"
+          ],
+          "explanation": "Candy fills the trick-or-treat bags."
+        }
+      ],
+      "final": {
+        "id": "q-final-11",
+        "category": "Spooky Science",
+        "text": "Which planet is nicknamed the Red Planet?",
+        "choices": [
+          "Venus",
+          "Mars",
+          "Jupiter",
+          "Mercury"
+        ],
+        "answer": "B",
+        "explanation": "Mars looks red because of iron oxide dust."
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "key": "dm",
+      "assetId": "a-3f9c1d2e7b40",
+      "file": "danse_macabre.mp3",
+      "durationSec": 30.0,
+      "category": "Midnight Concert",
+      "text": "What's the title of this piece?",
+      "answer": "Danse Macabre",
+      "aliases": [
+        "Danse Macabre",
+        "Dance Macabre"
+      ],
+      "explanation": "Saint-Saëns, Danse Macabre",
+      "clips": [
+        [
+          0.0,
+          7.0
+        ],
+        [
+          0.0,
+          16.0
+        ],
+        [
+          0.0,
+          30.0
+        ]
+      ],
+      "clues": [
+        "A solo fiddle plays tricks with an out-of-tune string.",
+        "A clock strikes twelve at the start."
+      ],
+      "credit": {
+        "title": "Danse macabre, Op. 40",
+        "license": "Public domain (US): PD-US-record-expired",
+        "author": "Camille Saint-Saëns",
+        "performer": "Philadelphia Orchestra, cond. Leopold Stokowski (1925)",
+        "source": "https://commons.wikimedia.org/wiki/File:PhiladelphiaSymphonyOrchestra-DanseMacabre.ogg"
+      }
+    },
+    {
+      "key": "hk",
+      "assetId": "a-8a1d00c2f917",
+      "file": "mountain_king.mp3",
+      "durationSec": 30.0,
+      "category": "Midnight Concert",
+      "text": "What's the title of this piece?",
+      "answer": "In the Hall of the Mountain King",
+      "aliases": [
+        "In the Hall of the Mountain King",
+        "Hall of the Mountain King"
+      ],
+      "explanation": "Grieg, In the Hall of the Mountain King",
+      "clips": [
+        [
+          0.0,
+          7.0
+        ],
+        [
+          0.0,
+          16.0
+        ],
+        [
+          0.0,
+          30.0
+        ]
+      ],
+      "clues": [
+        "It starts quietly and keeps speeding up.",
+        "The tune creeps along on low strings."
+      ],
+      "credit": {
+        "title": "In the Hall of the Mountain King (Peer Gynt Suite No. 1, Op. 46)",
+        "license": "Public domain (Musopen)",
+        "author": "Edvard Grieg",
+        "performer": "Czech National Symphony Orchestra (for Musopen)",
+        "source": "https://commons.wikimedia.org/wiki/File:Musopen_-_In_the_Hall_Of_The_Mountain_King.ogg"
+      }
+    },
+    {
+      "key": "tf",
+      "assetId": "a-c47e5b09d3a2",
+      "file": "bwv565.mp3",
+      "durationSec": 30.0,
+      "category": "Midnight Concert",
+      "text": "What's the title of this piece?",
+      "answer": "Toccata and Fugue in D minor",
+      "aliases": [
+        "Toccata and Fugue in D minor",
+        "Toccata and Fugue"
+      ],
+      "explanation": "Bach, Toccata and Fugue in D minor",
+      "clips": [
+        [
+          0.0,
+          7.0
+        ],
+        [
+          0.0,
+          16.0
+        ],
+        [
+          0.0,
+          30.0
+        ]
+      ],
+      "clues": [
+        "It is played on a very big keyboard instrument.",
+        "Three quick notes open it."
+      ],
+      "credit": {
+        "title": "Toccata and Fugue in D minor, BWV 565",
+        "license": "CC BY-SA 3.0",
+        "author": "Johann Sebastian Bach",
+        "performer": "Wikipedia user \"Cor anglais 16\" (Flentrop organ, Oberlin Conservatory)",
+        "source": "https://commons.wikimedia.org/wiki/File:BWV-565-intro.ogg"
+      }
+    }
+  ]
+}

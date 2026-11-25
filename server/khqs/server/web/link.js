@@ -17,6 +17,8 @@
     const Wrapped = class extends AC0 { constructor(...a) { super(...a); if (!sharedCtx) sharedCtx = this; } };
     window.AudioContext = Wrapped; window.webkitAudioContext = Wrapped;
   }
+  window.KHQS_NativeAudioContext = AC0;          // for the mic capture context (never the stage's)
+  window.KHQS_sharedCtx = () => sharedCtx;
 
   const cid = (() => {
     let v = null;
@@ -160,17 +162,38 @@
       return { ok: true, seat: r.seat };
     },
     async start() {
-      const r = await post('/api/start');
-      if (r.error) {
-        const e = document.querySelector('.cb-err, .lb-err'); if (e) e.textContent = r.error;
+      const fail = msg => {
+        const e = document.querySelector('.cb-err, .lb-err'); if (e) e.textContent = msg;
         const b = document.querySelector('.cb-sign, .lb-start'); if (b) b.disabled = false;
-      }
+      };
+      if (CFG.liveVoice) { const m = await ensureMc(); if (m) return fail(m); }   // mic + session first, then the show
+      const r = await post('/api/start');
+      if (r.error) fail(r.error);
     },
     async reset(force) {
       const r = await post('/api/reset', { force: !!force });
       return r.ok ? { ok: true } : { error: r.error || 'NOT NOW' };
     },
   };
+
+  // ---- live MC: mic permission, audio socket, then the Live session (an explicit operator action each time)
+  let mcInfo = { state: CFG.liveVoice ? 'offline' : 'online', reason: '' };
+  const loadScript = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  async function ensureMc() {
+    try {
+      if (!window.KHQS_McAudio) await loadScript('/play/mc-audio.js');
+      await window.KHQS_McAudio.connect();
+    } catch (e) { return e && e.message === 'MIC NEEDED' ? 'MIC NEEDED' : 'MC OFFLINE — TRY AGAIN'; }
+    const r = await post('/api/mc/connect');
+    mcPoll();
+    return r.error ? 'MC OFFLINE — TRY AGAIN' : null;
+  }
+  async function mcPoll() {
+    if (!CFG.liveVoice) return;
+    try { mcInfo = await (await fetch('/api/mc/status')).json(); } catch (e) { mcInfo = { state: 'offline', reason: 'server not reachable' }; }
+    chipUpdate();
+  }
+  if (CFG.liveVoice) setInterval(mcPoll, 2000);
 
   // ---- operator chip and the screen pad (outside the stage's own DOM)
   let chip = null, padBox = null;
@@ -190,12 +213,29 @@
     }
     padGame = gameId;
   }
+  // The pad stays collapsed to an edge tab unless a pad player has something to do (the iframe tells us), so it never
+  // sits on the stage's own buttons. The tab (or the chip button) overrides until the next change.
+  const padState = { needs: {}, manual: null };
+  let padTab = null;
+  window.addEventListener('message', e => {
+    const m = e.data;
+    if (e.origin !== location.origin || !m || m.khqs !== 'pad') return;
+    padState.needs[m.seat] = !!m.needs; padState.manual = null; padRender();
+  });
+  function padOpen() {
+    if (!Object.keys(pads()).length) return false;
+    return padState.manual !== null ? padState.manual : Object.values(padState.needs).some(Boolean);
+  }
   function padRender() {
     if (!padBox) return;
     const p = pads(), seats = Object.keys(p);
     // the pad steps aside at the curtain so it never covers the stage's NEW SHOW button
     const over = live.phase === 'finale.curtain' || live.phase === 'ended';
-    padBox.style.display = seats.length && padBox.dataset.open === '1' && !over ? '' : 'none';
+    const open = padOpen();
+    padBox.style.display = seats.length && open && !over ? '' : 'none';
+    padTab.style.display = seats.length && !over ? '' : 'none';
+    padTab.classList.toggle('alert', Object.values(padState.needs).some(Boolean));
+    padTab.textContent = open ? 'PAD ›' : '‹ PAD';
     const frames = padBox.querySelector('.frames');
     [...frames.children].forEach(f => { if (!p[f.dataset.seat]) f.remove(); });
     seats.forEach(s => {
@@ -208,7 +248,10 @@
   function chipUpdate() {
     if (!chip) return;
     chip.dataset.role = live.role; chip.dataset.status = live.status; chip.dataset.phase = live.phase;
-    chip.querySelector('.st').textContent = `${live.status === 'online' ? '●' : '○'} ${live.role.toUpperCase()} · ${live.mc.toUpperCase()} MC · ${live.phase}`;
+    const mcText = CFG.liveVoice ? `MC ${mcInfo.state.toUpperCase()}` : 'MOCK MC';
+    chip.dataset.mc = mcInfo.state;
+    chip.querySelector('.st').textContent = `${live.status === 'online' ? '●' : '○'} ${live.role.toUpperCase()} · ${mcText} · ${live.phase}`;
+    chip.querySelector('.mcre').style.display = CFG.liveVoice && mcInfo.state === 'offline' ? '' : 'none';
     chip.querySelector('.take').style.display = live.role === 'viewer' ? '' : 'none';
     padRender();
   }
@@ -217,18 +260,24 @@
     css.textContent = `#hud{display:none!important}
 #khqs-chip{position:fixed;left:6px;bottom:6px;z-index:2147483000;font:600 11px/1.3 system-ui,sans-serif;color:#f3e6c8;background:rgba(20,10,6,.72);border:1px solid #6b4a2b;border-radius:6px;padding:4px 6px;display:flex;gap:6px;align-items:center;opacity:.6}
 #khqs-chip:hover{opacity:1}#khqs-chip button{font:inherit;color:#2a1608;background:#f3e6c8;border:0;border-radius:4px;padding:2px 6px;cursor:pointer}
-#khqs-pad{position:fixed;right:6px;bottom:6px;z-index:2147483000;background:#1b0f0a;border:2px solid #ffcf6b;border-radius:8px;padding:4px;width:max-content;max-width:96vw}
+#khqs-pad{position:fixed;right:0;top:34px;z-index:2147483000;background:#1b0f0a;border:2px solid #ffcf6b;border-right:0;border-radius:8px 0 0 8px;padding:4px;width:max-content;max-width:96vw;max-height:calc(100vh - 150px);overflow:auto}
+#khqs-padtab{position:fixed;right:0;top:6px;z-index:2147483001;font:700 11px system-ui,sans-serif;color:#2a1608;background:#ffcf6b;border:0;border-radius:6px 0 0 6px;padding:4px 7px;cursor:pointer;opacity:.75}
+#khqs-padtab.alert{opacity:1;box-shadow:0 0 8px #ffcf6b}#khqs-padtab:hover{opacity:1}
 #khqs-pad .lbl{font:600 10px/1.25 system-ui,sans-serif;color:#ffcf6b;margin:0 0 3px;width:0;min-width:100%}
 #khqs-pad .frames{display:flex;gap:4px}#khqs-pad iframe{width:210px;height:380px;border:0;background:#1b0f0a;border-radius:6px}`;
     document.head.appendChild(css);
     chip = document.createElement('div'); chip.id = 'khqs-chip';
-    chip.innerHTML = '<span class="st"></span><button class="pad" type="button">PAD</button><button class="take" type="button" style="display:none">TAKE OVER</button><button class="new" type="button">NEW SHOW</button>';
+    chip.innerHTML = '<span class="st"></span><button class="pad" type="button">PAD</button><button class="mcre" type="button" style="display:none">RECONNECT MC</button><button class="take" type="button" style="display:none">TAKE OVER</button><button class="new" type="button">NEW SHOW</button>';
     document.body.appendChild(chip);
-    padBox = document.createElement('div'); padBox.id = 'khqs-pad'; padBox.dataset.open = '1'; padBox.style.display = 'none';
+    padTab = document.createElement('button'); padTab.id = 'khqs-padtab'; padTab.type = 'button'; padTab.style.display = 'none'; padTab.textContent = '‹ PAD';
+    padTab.onclick = () => { padState.manual = !padOpen(); padRender(); };
+    document.body.appendChild(padTab);
+    padBox = document.createElement('div'); padBox.id = 'khqs-pad'; padBox.style.display = 'none';
     padBox.innerHTML = '<div class="lbl">SCREEN PAD: visible to everyone in the room. Use your phone to keep your answers private.</div><div class="frames"></div>';
     document.body.appendChild(padBox);
-    chip.querySelector('.pad').onclick = () => { padBox.dataset.open = padBox.dataset.open === '1' ? '0' : '1'; padRender(); };
+    chip.querySelector('.pad').onclick = () => { padState.manual = !padOpen(); padRender(); };
     chip.querySelector('.take').onclick = () => { live.engine.ws && live.engine.ws.close(); clearTimeout(live.engine.rt); live.engine.open(true); };
+    chip.querySelector('.mcre').onclick = async () => { const m = await ensureMc(); if (m) alert(m); mcPoll(); };
     chip.querySelector('.new').onclick = () => { if (confirm('Start a new show now? The current game will be lost.')) KHQS_ENTRY.reset(true); };
     chipUpdate(); padRender();
   }

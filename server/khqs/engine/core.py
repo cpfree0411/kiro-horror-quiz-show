@@ -64,6 +64,7 @@ class Engine:
         game_index: int = 0,
         mc_enabled: bool = True,
         voice_input: bool | None = None,
+        status_from_playback: bool = False,
     ) -> None:
         self.clock = clock
         self.rng = rng
@@ -73,6 +74,8 @@ class Engine:
         # the MC may speak but not hear (the mock MC): the holder then gets the phone text box at once
         self.voice_input = mc_enabled if voice_input is None else (voice_input and mc_enabled)
         self.stats = {"gate_timeouts": 0}
+        # live MC: `speaking` follows the browser's real playback start (mc_started), not the moment a line is issued
+        self.status_from_playback = status_from_playback
         self.game_index = game_index
         self.content: GameContent = content.select(game_index, rng) if isinstance(content, ContentBank) else content
         self.game_id = f"game-{game_index + 1}"
@@ -224,7 +227,8 @@ class Engine:
         if self.mc_enabled:
             self._live.add(token)
             self._out.append(McSay(token, cue, facts))
-            self._set_mc("speaking")
+            if not self.status_from_playback:
+                self._set_mc("speaking")
         return token
 
     def token_live(self, token: str | None) -> bool:
@@ -598,6 +602,33 @@ class Engine:
 
     def mc_failed(self, token: str) -> bool:
         return self.mc_played(token)
+
+    def mc_started(self, token: str) -> bool:
+        """The browser began playing this line (live MC): the ghost starts talking now."""
+        if token not in self._live:
+            return False
+        if self.status_from_playback:
+            self._set_mc("speaking")
+        return True
+
+    def mc_offline(self) -> None:
+        """The live MC is gone: pending lines end now, later lines resolve at once, the holder types."""
+        self.mc_enabled = False
+        self.voice_input = False
+        self._live.clear()
+        if self.mc_status in ("speaking", "listening"):
+            self._set_mc("idle")
+        r = self.round
+        if isinstance(r, BuzzRound) and self.phase == "buzzer.answering" and r.answer is None:
+            r.text_box, r.listen_id = True, None
+            self._touch_all()
+        if isinstance(r, OxRound) and r.betrayal is not None:
+            r.betrayal.listen_id = None
+        self._check()
+
+    def mc_online(self, voice_input: bool = True) -> None:
+        self.mc_enabled = True
+        self.voice_input = voice_input
 
     def mc_voice_answer(self, listen_id: str, heard: str, recognition: str, voiced: bool) -> bool:
         r = self.round

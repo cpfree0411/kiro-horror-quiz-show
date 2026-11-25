@@ -7,6 +7,7 @@ import threading
 
 import uvicorn
 
+from ..content.bank_io import BankError, load_bank
 from ..content.dev_bank import build_dev_bank
 from .app import build_apps
 from .host import GameHost
@@ -23,7 +24,11 @@ def _config(app, host: str, port: int) -> uvicorn.Config:
 
 async def serve(settings: Settings, ready: threading.Event | None = None, holder: dict | None = None) -> None:
     settings.validate()
-    host = GameHost(settings, build_dev_bank(settings.media_dir))
+    try:
+        bank = load_bank(settings.bank_path, settings.media_dir) if settings.bank_path else build_dev_bank(settings.media_dir)
+    except BankError as e:
+        raise SystemExit(f"question bank {settings.bank_path} is not usable:\n{e}") from None
+    host = GameHost(settings, bank)
     stage_app, phone_app = build_apps(host, settings)
     servers = [uvicorn.Server(_config(stage_app, settings.stage_host, settings.stage_port)),
                uvicorn.Server(_config(phone_app, settings.phone_host, settings.phone_port))]

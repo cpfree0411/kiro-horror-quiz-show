@@ -55,6 +55,11 @@
   function onView(v) {
     S.view = v; S.at = Date.now(); S.offset = v.game.serverTime - Date.now();
     $('pc-name').textContent = v.you.name; $('pc-score').textContent = v.you.score; $('pc-rank').textContent = 'RANK ' + v.you.rank;
+    if (padSeat !== null && window.parent !== window) {   // a screen pad tells the stage page when it has something to do
+      const quiet = ['waiting', 'locked', 'ox_locked', 'bet_locked', 'final_locked', 'done', 'invalid', 'connecting'];
+      if (S.lastScreen !== v.screen) window.parent.postMessage({ khqs: 'pad', seat: +padSeat, screen: v.screen, needs: !quiet.includes(v.screen) }, location.origin);
+    }
+    S.lastScreen = v.screen;
     const sig = [v.screen, v.question && v.question.id, v.question && v.question.text, JSON.stringify(v.own)].join('|');
     if (sig !== S.sig) { S.sig = sig; S.pending = null; S.sending = false; render(true); }
   }
