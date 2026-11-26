@@ -107,11 +107,12 @@ Files: `.kiro/hooks/frozen-boundary.json`, `bank-check.json`, `quick-tests.json`
 - The full fast suite takes about 2.5 minutes, so it is not a hook. Run `scripts/test.sh` on demand.
 - The hooks were created with Kiro's `createHook` tool. The tool wrote them to the workspace root (`/srv/workdata/projects/.kiro/hooks/`), so they were moved into this repo's `.kiro/hooks/`.
 - `tests/test_kiro_hooks.py` (18 tests) checks the hook files: format, that each matcher hits real paths and misses others, that the commands exist and run, and that a changed file in a temporary copy of `stage/` makes the manifest script fail. It works on temp copies, so the real `stage/` is never touched.
-- **Not verified:** the hooks never fired in the Kiro session that wrote them. Kiro loads hooks at the start of a session. What is verified is the format, the matchers and the scripts, run by hand and by the tests. Whether Kiro fires them on a file save is not observed.
+- **Firing check, first attempt: no hook was seen to fire.** After P6 was accepted, a one-character edit to `tests/test_guards.py` (a file the `quick-tests` hook matches) was saved through the agent's file-edit tool in the same session that had created the hooks. No hook output came back and no `test_quick.sh` process ran. The edit was reverted (`git status` clean). Kiro loads hooks at session start, so this session, which began before the hooks existed, is the expected case for "not loaded", and the result says nothing about a fresh session.
+- **Still not verified:** that a hook fires in a session that started after the hook files were committed. The format, the matchers and the scripts are verified, by hand and by `tests/test_kiro_hooks.py`. The check is to be repeated in the next session and this paragraph updated with the result.
 
 ## Limits of this account
 
 - The stage, art, sound and question content were made outside Kiro.
 - No real Cloudflare tunnel was set up. Public mode was tested against local requests with forwarding headers and a fake public host.
 - Human voice with room echo has not been tested. Real Gemini sessions used a synthetic voice through a fake microphone.
-- The hooks have not been seen firing inside Kiro.
+- The hooks have not been seen firing inside Kiro (one attempt in the session that created them, no firing; not yet repeated in a fresh session).
