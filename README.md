@@ -2,7 +2,7 @@
 
 A kitschy, cute Halloween quiz show in the browser. A ghost MC hosts, one to three players answer with their phones, and the stage is a pre-made animated set. Built for the Kiroween hackathon.
 
-**Status: phases P0 to P3 are done.** The show runs end to end on the real stage with either a free mock MC (default) or the Gemini Live voice MC, players on phones or the on-screen pad, and the question bank in a data file. What is left for the next agent: write the real English bank (P4) and package the submission (P5), see "Handoff" below.
+**Status: phases P0 to P4 are done.** The show runs end to end on the real stage with either a free mock MC (default) or the Gemini Live voice MC, players on phones or the on-screen pad, and the English question bank `banks/en-bank.json`. What is left: package the submission (P5), see "Handoff" below.
 
 ## What was made before Kiro, and what was made with Kiro
 
@@ -11,9 +11,11 @@ A kitschy, cute Halloween quiz show in the browser. A ghost MC hosts, one to thr
 - the `khqs.stage/1` protocol, its schema, scenarios and validator (`interface/`)
 - an earlier private prototype whose lessons are written into `docs/`
 
-**Made with Kiro in this repo:** the engine, server, connector, mock MC, phone UI, question bank, tests and docs written after the handoff. Specs and steering are in [`.kiro/specs`](.kiro/specs) and [`.kiro/steering`](.kiro/steering). This list grows phase by phase.
+**Made with Kiro in this repo (P0 to P3):** the engine, server, connector, mock MC, Gemini Live MC, phone UI, the question bank format and loader, tests and docs written after the handoff. Specs and steering are in [`.kiro/specs`](.kiro/specs) and [`.kiro/steering`](.kiro/steering). This list grows phase by phase.
 
-Kiro did not make the stage or the art.
+**Made after Kiro, with Claude Code (P4):** the English question content in `banks/en-bank.json` and its test `tests/test_en_bank.py`.
+
+Kiro did not make the stage, the art or the question content.
 
 ## Third-party audio
 
@@ -50,7 +52,7 @@ The bottom-left chip shows PRIMARY or VIEWER, the MC state and the phase. A seco
 | `KHQS_PHONE_HOST` | `192.168.50.216` | the one LAN address for phones (`0.0.0.0`, `::` and empty are refused) |
 | `KHQS_PHONE_PORT` | `18831` | phone listener (phone routes only) |
 | `KHQS_PUBLIC_PHONE_URL` | `http://<phone host>:<port>/ticket.html` | the URL in the lobby QR |
-| `KHQS_BANK` | `banks/dev-bank.json` | question bank file, see `docs/QUESTION_BANK_FORMAT.md`; an invalid file stops startup with a list of errors |
+| `KHQS_BANK` | `banks/en-bank.json` (set by `scripts/run.sh`; without it the server uses the dev bank) | question bank file, see `docs/QUESTION_BANK_FORMAT.md`; an invalid file stops startup with a list of errors |
 | `KHQS_MC` | `mock` | `mock` or `live` |
 | `KHQS_ENV_FILE` | `/home/na/.config/jarvis-live/.env` | file holding `GEMINI_API_KEY`; read only when a live session connects |
 | `KHQS_LIVE_MODEL` / `KHQS_LIVE_VOICE` | `gemini-3.8-live` / `Despina` | Live model and voice |
@@ -81,7 +83,7 @@ KHQS_BANK=banks/my-bank.json scripts/run.sh
 | `interface/` | Frozen protocol spec, schema, scenarios, validator. Never edited. |
 | `media/` | Question music excerpts and credits. |
 | `docs/` | `HANDOFF.md`, `GAME_RULES.md` (inputs, English-only scope applied), `QUESTION_BANK_FORMAT.md`. |
-| `banks/` | Question bank files; `dev-bank.json` is placeholder content. |
+| `banks/` | Question bank files; `en-bank.json` is the show bank; `dev-bank.json` is placeholder content kept for tests. |
 | `.kiro/steering/`, `.kiro/specs/` | Kiro steering and per-phase specs. |
 | `server/khqs/` | `rules/` (pure), `content/`, `engine/` (state, flow, views; no I/O), `mc/` (mock MC, Live MC, prompts, transport), `server/` (host, apps, connector, MC audio and phone UI in `web/`). |
 | `tests/`, `scripts/` | Tests (`tests/support/` is the simulation harness) and dev helpers. |
@@ -115,7 +117,7 @@ Slow tests (`scripts/test.sh -m slow <file>`, run them in parallel processes): `
 
 ## Handoff (what the next agent does)
 
-1. **P4, the English question bank.** Write `banks/<name>.json` in the documented format (two sets of eight; music slot with the three real recordings in `media/`, hint clips and private clues; English aliases), run `scripts/check_bank.sh`, then check every string on the real stage boards (screenshots at `question.presented`, `question.text_revealed`, `final.choices_revealed`; `docs/HANDOFF.md` §7). Point `KHQS_BANK` at it, or replace `banks/dev-bank.json`.
+1. **P4, the English question bank: done.** `banks/en-bank.json` (two sets of eight, three music tracks), checked with `scripts/check_bank.sh` (0 errors, 0 warnings) and on the real stage boards; act-2 explanations are short because the stage draws them as the big answer card.
 2. **P5, packaging.** README polish and the disclosure (kept current below), license (the owner plans MIT for code; `stage/` and `media/` keep their own terms), the demo video (the owner), optional public deploy behind the guard in `docs/HANDOFF.md` §8. Never expose the stage listener or the live MC beyond localhost.
 
 Evidence from each phase (screenshots, logs, real-run reports) is in `/srv/workdata/build-cache/khqs-evidence/` on the owner's host; it is not in the repo. Per-phase specs and verification tables: `.kiro/specs/`.
@@ -123,7 +125,6 @@ Evidence from each phase (screenshots, logs, real-run reports) is in `/srv/workd
 ## Known limits
 
 - Memory-only state: restarting the server loses the running game.
-- The questions in `banks/dev-bank.json` are placeholders until P4.
 - Voice: tested with a fake microphone fed a synthesized "Mirror" clip, not yet with a human voice and room echo. The mic is closed while the MC speaks and during music, because echo cancellation is off by design.
 - The MC does not understand other languages (English only, owner decision).
 - One live session at a time; the free tier has rate and session limits, so a failed connect is reported, never retried.

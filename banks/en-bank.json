@@ -1,0 +1,288 @@
+{
+  "format": "khqs.bank/1",
+  "sets": [
+    {
+      "id": "set-a",
+      "musicPosition": 2,
+      "ox": [
+        {
+          "id": "q-a-ox-1",
+          "category": "Garden Gossip",
+          "text": "A pumpkin is a fruit, not a vegetable.",
+          "answer": "O",
+          "explanation": "It grows from a flower and holds seeds, so it's a fruit. Pie agrees."
+        },
+        {
+          "id": "q-a-ox-2",
+          "category": "Lucky or Not?",
+          "text": "Black cats are thought to be bad luck everywhere in the world.",
+          "answer": "X",
+          "explanation": "Nope! In Britain and Japan, black cats are often good luck."
+        },
+        {
+          "id": "q-a-ox-3",
+          "category": "Bat Etiquette",
+          "text": "Vampire bats share their dinner with hungry roommates.",
+          "answer": "O",
+          "explanation": "True! They share meals with roommates who missed dinner. Spooky, but sweet."
+        }
+      ],
+      "buzzers": [
+        {
+          "id": "q-a-bz-1",
+          "category": "Monster Fashion",
+          "text": "Which monster wears bandages from head to toe?",
+          "answer": "Mummy",
+          "aliases": [
+            "A mummy",
+            "The mummy",
+            "Mummies",
+            "The mummies"
+          ],
+          "explanation": "The mummy, a wrap star!"
+        },
+        {
+          "id": "q-a-bz-2",
+          "category": "Vampire Bedtime",
+          "text": "What box does a vampire nap in all day long?",
+          "answer": "Coffin",
+          "aliases": [
+            "A coffin",
+            "The coffin",
+            "Casket",
+            "A casket"
+          ],
+          "explanation": "A coffin. Do not disturb!"
+        },
+        {
+          "id": "q-a-bz-3",
+          "category": "Doorbell Manners",
+          "text": "What do kids shout when you open the door on Halloween night?",
+          "answer": "Trick or treat",
+          "aliases": [
+            "Trick or treat!",
+            "Trick-or-treat"
+          ],
+          "explanation": "Trick or treat!"
+        }
+      ],
+      "final": {
+        "id": "q-a-final",
+        "category": "Bird Words",
+        "text": "What do you call a group of owls?",
+        "choices": [
+          "A sleepover",
+          "A parliament",
+          "A hootenanny",
+          "A book club"
+        ],
+        "answer": "B",
+        "explanation": "A parliament of owls. Very wise, very serious, mostly asleep."
+      }
+    },
+    {
+      "id": "set-b",
+      "musicPosition": 3,
+      "ox": [
+        {
+          "id": "q-b-ox-1",
+          "category": "Owl Gymnastics",
+          "text": "An owl can turn its head all the way around, a full 360 degrees.",
+          "answer": "X",
+          "explanation": "Close! Owls manage about 270 degrees. Still a great party trick."
+        },
+        {
+          "id": "q-b-ox-2",
+          "category": "Vampire Book Club",
+          "text": "In the original 1897 novel, Count Dracula can't go outside in daylight.",
+          "answer": "X",
+          "explanation": "He strolls around London by day. He's just weaker in the sun."
+        },
+        {
+          "id": "q-b-ox-3",
+          "category": "Bone Count",
+          "text": "Babies are born with more bones than grown-ups have.",
+          "answer": "O",
+          "explanation": "Babies have about 300. Many fuse together, so adults end up with 206."
+        }
+      ],
+      "buzzers": [
+        {
+          "id": "q-b-bz-1",
+          "category": "Leg Day",
+          "text": "How many legs does a spider have?",
+          "answer": "Eight",
+          "aliases": [
+            "8",
+            "Eight legs",
+            "8 legs"
+          ],
+          "explanation": "Eight! So many tiny shoes."
+        },
+        {
+          "id": "q-b-bz-2",
+          "category": "Fur Forecast",
+          "text": "In the old stories, what turns a person into a werewolf?",
+          "answer": "Full moon",
+          "aliases": [
+            "The full moon",
+            "A full moon",
+            "Moon",
+            "The moon"
+          ],
+          "explanation": "The full moon. Hairy times!"
+        },
+        {
+          "id": "q-b-bz-3",
+          "category": "Bare Minimum",
+          "text": "Which spooky someone is all bones and no body?",
+          "answer": "Skeleton",
+          "aliases": [
+            "A skeleton",
+            "The skeleton",
+            "Skeletons"
+          ],
+          "explanation": "A skeleton, all backbone!"
+        }
+      ],
+      "final": {
+        "id": "q-b-final",
+        "category": "Lantern History",
+        "text": "Before pumpkins, what did people in Ireland carve into spooky lanterns?",
+        "choices": [
+          "Watermelons",
+          "Pineapples",
+          "Turnips",
+          "Coconuts"
+        ],
+        "answer": "C",
+        "explanation": "Turnips! In America, pumpkins were bigger and far easier to carve."
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "key": "dm",
+      "assetId": "a-3f9c1d2e7b40",
+      "file": "danse_macabre.mp3",
+      "durationSec": 30.0,
+      "category": "Midnight Concert",
+      "text": "What's the title of this piece?",
+      "answer": "Danse Macabre",
+      "aliases": [
+        "Danse Macabre",
+        "Dance Macabre",
+        "Danse Macabre Op 40"
+      ],
+      "explanation": "Danse Macabre",
+      "clips": [
+        [
+          0.0,
+          7.0
+        ],
+        [
+          0.0,
+          16.0
+        ],
+        [
+          0.0,
+          30.0
+        ]
+      ],
+      "clues": [
+        "The fiddler tunes one string wrong on purpose, for extra spookiness.",
+        "It's French, and a harp chimes twelve times for midnight at the start."
+      ],
+      "credit": {
+        "title": "Danse macabre, Op. 40",
+        "license": "Public domain (US): PD-US-record-expired",
+        "author": "Camille Saint-Saëns",
+        "performer": "Philadelphia Orchestra, cond. Leopold Stokowski (1925)",
+        "source": "https://commons.wikimedia.org/wiki/File:PhiladelphiaSymphonyOrchestra-DanseMacabre.ogg"
+      }
+    },
+    {
+      "key": "hk",
+      "assetId": "a-8a1d00c2f917",
+      "file": "mountain_king.mp3",
+      "durationSec": 30.0,
+      "category": "Midnight Concert",
+      "text": "What's the title of this piece?",
+      "answer": "In the Hall of the Mountain King",
+      "aliases": [
+        "In the Hall of the Mountain King",
+        "Hall of the Mountain King",
+        "Mountain King",
+        "The Hall of the Mountain King"
+      ],
+      "explanation": "In the Hall of the Mountain King",
+      "clips": [
+        [
+          0.0,
+          7.0
+        ],
+        [
+          0.0,
+          16.0
+        ],
+        [
+          0.0,
+          30.0
+        ]
+      ],
+      "clues": [
+        "It starts sneaky-quiet and keeps getting faster and louder.",
+        "It's from a Norwegian play, and grumpy trolls are chasing someone."
+      ],
+      "credit": {
+        "title": "In the Hall of the Mountain King (Peer Gynt Suite No. 1, Op. 46)",
+        "license": "Public domain (Musopen)",
+        "author": "Edvard Grieg",
+        "performer": "Czech National Symphony Orchestra (for Musopen)",
+        "source": "https://commons.wikimedia.org/wiki/File:Musopen_-_In_the_Hall_Of_The_Mountain_King.ogg"
+      }
+    },
+    {
+      "key": "tf",
+      "assetId": "a-c47e5b09d3a2",
+      "file": "bwv565.mp3",
+      "durationSec": 30.0,
+      "category": "Midnight Concert",
+      "text": "What's the title of this piece?",
+      "answer": "Toccata and Fugue in D minor",
+      "aliases": [
+        "Toccata and Fugue in D minor",
+        "Toccata and Fugue",
+        "Toccata and Fugue in D",
+        "Toccata",
+        "BWV 565"
+      ],
+      "explanation": "Toccata and Fugue in D minor",
+      "clips": [
+        [
+          0.0,
+          7.0
+        ],
+        [
+          0.0,
+          16.0
+        ],
+        [
+          0.0,
+          30.0
+        ]
+      ],
+      "clues": [
+        "It's played on one enormous instrument with lots of pipes.",
+        "It's German and Baroque, and it opens with a dramatic twirl and a huge rumbling chord."
+      ],
+      "credit": {
+        "title": "Toccata and Fugue in D minor, BWV 565",
+        "license": "CC BY-SA 3.0",
+        "author": "Johann Sebastian Bach",
+        "performer": "Wikipedia user \"Cor anglais 16\" (Flentrop organ, Oberlin Conservatory)",
+        "source": "https://commons.wikimedia.org/wiki/File:BWV-565-intro.ogg"
+      }
+    }
+  ]
+}
