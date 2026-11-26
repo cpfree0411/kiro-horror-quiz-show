@@ -25,7 +25,7 @@ Everything under `server/`, `tests/`, `scripts/`, `docs/` other than `HANDOFF.md
 | P2 | `c22e9b2` | Server, connector, phone UI, mock MC, port split, headless-browser acceptance |
 | P3 | `f2e323a` | Gemini Live MC, browser audio host, bank format and loader, English-only scope, collapsible pad |
 | P4 | `c9aaa01` | Not Kiro's: English question bank and its tests |
-| P6 | the commit that adds this file | Public demo mode, soak and leak fixes, hooks, docs |
+| P6 | `a11d210` | Public demo mode, soak and leak fixes, hooks, docs |
 
 P5 (packaging the submission) is not done.
 
