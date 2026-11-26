@@ -2,20 +2,38 @@
 
 A kitschy, cute Halloween quiz show in the browser. A ghost MC hosts, one to three players answer with their phones, and the stage is a pre-made animated set. Built for the Kiroween hackathon.
 
-**Status: phases P0 to P4, P6 and P7 are done.** The show runs end to end on the real stage with either a free mock MC (default) or the Gemini Live voice MC, players on phones or the on-screen pad, and the English question bank `banks/en-bank.json`. What is left: package the submission (P5), see "Handoff" below.
+**Status: done (phases P0 to P7).** The show runs end to end on the real stage with either a free mock MC (default) or the Gemini Live voice MC, players on phones or the on-screen pad, and the English question bank `banks/en-bank.json`. The owner played it with the live voice MC: solo games and a two-phone game, the spoken hint request and the spoken yes/no included.
 
-## What was made before Kiro, and what was made with Kiro
+## What was made before Kiro, with Kiro, and alongside Kiro
 
 **Made before Kiro, by the project owner with other AI tools** (Claude Code for stage code, ChatGPT image editing for art plates, Gemini for some music, sound effects from Pixabay):
 - the stage (`stage/`): visuals, animation, art, sound design and cues
 - the `khqs.stage/1` protocol, its schema, scenarios and validator (`interface/`)
 - an earlier private prototype whose lessons are written into `docs/`
 
-**Made with Kiro in this repo (P0 to P3, P6 and P7):** the engine, server, connector, mock MC, Gemini Live MC, phone UI, the question bank format and loader, the public demo mode and its guards, the soak and leak checks, the Kiro hooks, spoken hints in the music question, tests and docs written after the handoff. How Kiro was used, phase by phase, is in [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md). Specs and steering are in [`.kiro/specs`](.kiro/specs) and [`.kiro/steering`](.kiro/steering). This list grows phase by phase.
+**Made with Kiro in this repo (P0 to P3, P6 and P7):** the engine, server, connector, mock MC, Gemini Live MC, phone UI, the question bank format and loader, the public demo mode and its guards, the soak and leak checks, the Kiro hooks, spoken hints in the music question, tests and docs written after the handoff. How Kiro was used, phase by phase, is in [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md). Specs and steering are in [`.kiro/specs`](.kiro/specs) and [`.kiro/steering`](.kiro/steering).
 
-**Made after Kiro, with Claude Code (P4):** the English question content in `banks/en-bank.json` and its test `tests/test_en_bank.py`.
+**Made alongside Kiro, by the owner with Claude Code (not by Kiro):**
+- the handoff package Kiro started from (`docs/HANDOFF.md`, `docs/GAME_RULES.md`, the frozen `stage/` and `interface/`), and the phase requests sent to Kiro, written from the owner's decisions
+- P4: the English question content in `banks/en-bank.json` (questions, explanations, music clues; the three composer names, which Kiro added to the file in P7) and its test `tests/test_en_bank.py`
+- one stage change after the handoff, from the owner's play test: the act-2 answer reveal ends on a comedy drum roll (commit `260e0fc`; `MANIFEST.sha256` follows it)
+- review of each Kiro phase (Claude Code re-ran Kiro's tests and checks), and the P5 packaging: this README pass and `LICENSE`
 
-Kiro did not make the stage, the art or the question content.
+Kiro did not make the stage, the art, the sound or the question content.
+
+## Kiro features used
+
+- **Specs.** Every Kiro phase started with a spec (requirements, design, tasks) and ended with a `verification.md` that maps each requirement to the test or run that shows it: `.kiro/specs/p0-bootstrap` to `p7-music-hints`.
+- **Steering.** Six always-included files in `.kiro/steering/`: the frozen stage contract, secrecy (nothing about an answer reaches the model before its reveal), English-only voice, product, structure and tech. Kiro turned these rules into tests: a manifest check for the frozen files, a leak scanner over every prompt and caption in full games, and sentinel tests for the API key.
+- **Agent hooks.** Four in `.kiro/hooks/`:
+  - `frozen-boundary` runs the manifest check when `stage/` or `interface/` changes.
+  - `bank-check` validates the question banks.
+  - `quick-tests` runs a 10-second test subset on code edits.
+  - `stop-gate` runs all three when the agent ends a turn.
+- **Sub-agent and web search.** The validation sub-agent reviewed P2. A web search checked the Gemini Live model name in P3.
+- **Results.** 548 fast tests and 12 slow headless-browser tests. Tests never call the Gemini API; a fake Live transport stands in, and it was made to behave like the real API after the owner's play test found a gap.
+
+The details, with commits, test counts and the bugs verification found, are in [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md).
 
 ## Third-party audio
 
@@ -89,7 +107,7 @@ KHQS_BANK=banks/my-bank.json scripts/run.sh
 
 | Path | What |
 | --- | --- |
-| `stage/` | Frozen stage. Never edited. |
+| `stage/` | Frozen stage. Never edited by Kiro; one later sound change by Claude Code (`260e0fc`). |
 | `interface/` | Frozen protocol spec, schema, scenarios, validator. Never edited. |
 | `media/` | Question music excerpts and credits. |
 | `docs/` | `HANDOFF.md`, `GAME_RULES.md` (inputs, English-only scope applied), `QUESTION_BANK_FORMAT.md`. |
@@ -103,7 +121,7 @@ KHQS_BANK=banks/my-bank.json scripts/run.sh
 
 ```bash
 scripts/setup_dev.sh          # creates the venv outside the repo, installs dev dependencies
-scripts/test.sh               # fast tests: manifest, validator, repo hygiene, engine (about 85 s)
+scripts/test.sh               # fast tests: manifest, validator, repo hygiene, engine, server (about four minutes)
 scripts/test.sh -m slow       # long browser checks: the stage's #demo, and full games in headless Chromium
 sha256sum -c MANIFEST.sha256  # the frozen boundary
 python -B interface/tools/validate.py   # expect: ALL OK
@@ -115,7 +133,11 @@ Keep files byte-exact: `.gitattributes` turns off all line-ending conversion, an
 
 ## License
 
-Not chosen yet; the owner decides before submission. Plan: MIT for the code written in this repo. `stage/` and `media/` keep their own terms (`stage/CREDITS.md`, `media/CREDITS.md`) and are not relicensed.
+The code in this repository (server, scripts, tests, the stage code in `stage/` and the protocol in `interface/`) is under the [MIT License](LICENSE). Third-party media keep their own licenses and are not relicensed:
+- `media/`: question music, listed in `media/CREDITS.md` (one recording CC BY-SA 3.0, two public domain).
+- `stage/assets/sound/`: sound effects from Pixabay under the Pixabay Content License, listed in `stage/CREDITS.md`; they may not be redistributed on their own.
+
+The art in `stage/assets/` and the Gemini-generated music cues were made by the owner for this project and are not under the MIT License; they may be used to run, review and judge the project.
 
 ## Tests
 
@@ -130,15 +152,15 @@ Slow tests (`scripts/test.sh -m slow <file>`, run them in parallel processes): `
 ## Handoff (what the next agent does)
 
 1. **P4, the English question bank: done.** `banks/en-bank.json` (two sets of eight, three music tracks), checked with `scripts/check_bank.sh` (0 errors, 0 warnings) and on the real stage boards; act-2 explanations are short because the stage draws them as the big answer card.
-2. **P5, packaging.** README polish and the disclosure (kept current below), license (the owner plans MIT for code; `stage/` and `media/` keep their own terms), the demo video (the owner), optional public deploy: the server side is done (`docs/PUBLIC_DEMO.md`: guards, settings, the intended tunnel setup; nothing is deployed). Never expose the stage listener or the live MC beyond localhost.
+2. **P5, packaging: done by Claude Code.** This README pass, the disclosure above and `LICENSE`. Still the owner's: the demo video, and an optional public deploy (the server side is ready in `docs/PUBLIC_DEMO.md`; nothing is deployed). Never expose the stage listener or the live MC beyond localhost.
 
 Evidence from each phase (screenshots, logs, real-run reports) is in `/srv/workdata/build-cache/khqs-evidence/` on the owner's host; it is not in the repo. Per-phase specs and verification tables: `.kiro/specs/`.
 
 ## Known limits
 
 - Memory-only state: restarting the server loses the running game.
-- Voice: tested with a fake microphone fed a synthesized "Mirror" clip, not yet with a human voice and room echo. The mic is closed while the MC speaks and during music, because echo cancellation is off by design.
+- Voice: tested by the owner with a human voice in one room (English). The mic is closed while the MC speaks and during music, because echo cancellation is off by design. Several people talking at once in the hint vote has not been tried.
 - The MC does not understand other languages (English only, owner decision).
 - One live session at a time; the free tier has rate and session limits, so a failed connect is reported, never retried.
 - Only the stage page (loopback) can start or reconnect the live MC; the phone port cannot.
-- Sound is verified only in headless runs plus the owner's hands-on test of P2 (music and finale worked); the owner's live-voice play test of a full game went well, but it was one session, and the spoken hint request and the spoken yes/no of P7 are covered by tests with a fake Live session only, not yet by a human voice.
+- Play tests: the owner's live-voice games on 2026-11-27 (solo games and a two-phone game) covered the betrayal offer, the spoken hint request, the hint vote and the finale; every MC line in those runs produced audio. Larger groups and long sessions have only been tested with the mock MC (`scripts/soak.py`).

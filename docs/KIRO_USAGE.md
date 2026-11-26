@@ -27,8 +27,9 @@ Everything under `server/`, `tests/`, `scripts/`, `docs/` other than `HANDOFF.md
 | P4 | `c9aaa01` | Not Kiro's: English question bank and its tests |
 | P6 | `a11d210` | Public demo mode, soak and leak fixes, hooks, docs |
 | P7 | `a250331` | Spoken hints on request in the music question (consent, `composer` in the bank format), worst-case timing script |
+| P7 fix | `1f0d0b2` | Hold a cue until the model's tool-call turn ends; a fake transport that models it (found in the owner's play test) |
 
-P5 (packaging the submission) is not done.
+P5 (packaging the submission: README pass, `LICENSE`) was done by Claude Code, not Kiro. The play-test facts marked *(P5)* in this file were added then.
 
 ## Steering
 
@@ -86,7 +87,7 @@ Web search was used once, in P3, to check the current Gemini Live model name. Th
 
 ### Real Gemini sessions
 
-Four real Live sessions, all in P3 (one speech fixture, three smoke games), logged outside the repo in `/srv/workdata/build-cache/khqs-evidence/p3/`. Tests never call the live API. P6 and P7 opened no real session.
+Four real Live sessions, all in P3 (one speech fixture, three smoke games), logged outside the repo in `/srv/workdata/build-cache/khqs-evidence/p3/`. Tests never call the live API. P6 and P7 opened no real session; the P7 fix opened one (`scripts/live_smoke.py hint`, see below). *(P5)* The owner's own play tests on 2026-11-27 ran five more sessions with a human voice.
 
 ## P6 in detail
 
@@ -128,6 +129,6 @@ The owner's live-voice test found that the MC never spoke the hint. All P7 tests
 
 - The stage, art, sound and question content were made outside Kiro.
 - No real Cloudflare tunnel was set up. Public mode was tested against local requests with forwarding headers and a fake public host.
-- Human voice with room echo has not been tested. Real Gemini sessions used a synthetic voice through a fake microphone.
+- *(P5)* Human voice: the owner played live-voice games in one room on 2026-11-27, solo and with two phones. Kiro's own real sessions used a synthetic voice through a fake microphone.
 - The hooks have not been seen firing inside Kiro (two attempts, both in the session that created them, no firing; not yet repeated in a fresh session).
-- The spoken hint request and the spoken yes or no have not been heard by a human or by the real Live model.
+- *(P5)* The spoken hint request and the spoken yes or no worked with the real Live model in the owner's play tests on `1f0d0b2`: the hint line had audio (7.3 s solo, 7.1 s in the two-phone game) and a spoken vote arrived as `report_vote`. Several people talking at once in the vote has not been tried.
