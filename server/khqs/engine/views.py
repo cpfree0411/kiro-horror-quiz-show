@@ -107,8 +107,19 @@ def phone_view(eng, seat: int) -> dict | None:
         if r.holder == seat:
             screen = "answer_text" if r.text_box else "answer_voice"
             own["textBox"] = r.text_box
+            if q is not None and q.kind == "av":
+                own["canHint"] = eng.can_ask_hint(seat) and not r.hint_request
         elif seat in r.locked:
             screen = "locked"
+    elif isinstance(r, BuzzRound) and eng.phase == "buzzer.hint" and r.holder is not None:
+        # a spoken hint was requested: the requester waits, the others vote while the window is open
+        c = r.consent
+        if r.holder == seat:
+            screen = "hint_wait"
+            own["hint"] = {"asking": c is not None}
+        elif c is not None and seat in c.voters:
+            screen = "hint_voted" if seat in c.votes else "hint_vote"
+            own["hint"] = {"requester": eng.players[c.seat].name, "voted": c.votes.get(seat)}
     elif isinstance(r, OxRound) and eng.phase == "ox.betrayal" and r.betrayal and r.betrayal.seat == seat \
             and r.betrayal.step:
         b = r.betrayal

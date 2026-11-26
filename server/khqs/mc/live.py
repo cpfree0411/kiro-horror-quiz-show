@@ -28,6 +28,7 @@ NO_SPEECH_S = 7.0
 TOOL_WAIT_S = 6.0
 DRAIN_S, DRAIN_LATE_S = 1.5, 0.3
 HEARD_MAX = 200
+MAX_REARMS = 4
 
 
 class AudioPort(Protocol):
@@ -61,6 +62,7 @@ class _Listen:
     activity_open: bool = False
     speech_ended: bool = False
     task: asyncio.Task | None = None
+    rearms: int = 0
 
 
 class LiveMc:
@@ -373,7 +375,21 @@ class LiveMc:
             except LiveError:
                 pass
 
+    def _rearm(self, l: _Listen) -> bool:
+        """Consent only: the room may speak more than once, so the same listen stays open for the next voice until the engine ends the window."""
+        if self.listen is not l or l.rearms >= MAX_REARMS:
+            return False
+        if l.task:
+            l.task.cancel()
+            l.task = None
+        l.rearms += 1
+        l.meter, l.mic_open, l.speech_ended, l.activity_open = VoiceMeter(), False, False, False
+        self._spawn(self._pump_listen())
+        return True
+
     async def _fail(self, l: _Listen) -> None:
+        if l.purpose == "consent" and self._rearm(l):
+            return  # nothing usable was heard; silence counts as yes, so the engine needs no report
         self._drop_listen()
         if l.purpose == "answer":
             self.host.run(self.host.engine.mc_voice_answer, l.id, "", "unclear", l.meter.voiced)
@@ -385,14 +401,20 @@ class LiveMc:
         except LiveError as e:
             await self.safe_stop(f"send failed: {e}")
             return
-        want = {"answer": "report_answer", "reason": "report_reason", "decision": "report_decision"}
+        want = {"answer": "report_answer", "reason": "report_reason", "decision": "report_decision", "consent": "report_vote"}
         if l is None or want.get(l.purpose) != call.name:
             return  # stale or unexpected: ignored
-        self._drop_listen()
         a = call.args or {}
         heard = a.get("heard") if isinstance(a.get("heard"), str) else ""
         heard = heard.strip()[:HEARD_MAX]
         eng = self.host.engine
+        if l.purpose == "consent":  # the engine classifies the words; the window stays open for the next voice
+            rec = "clear" if a.get("recognition") == "clear" else "unclear"
+            voiced = l.meter.voiced
+            self._rearm(l)
+            self.host.run(eng.mc_voice_consent, l.id, heard, rec, voiced)
+            return
+        self._drop_listen()
         if l.purpose == "answer":
             rec = "clear" if a.get("recognition") == "clear" else "unclear"
             eng_call = (eng.mc_voice_answer, l.id, heard, rec, l.meter.voiced)

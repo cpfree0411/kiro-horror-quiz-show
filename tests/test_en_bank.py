@@ -70,3 +70,12 @@ def test_act2_answer_cards_stay_short():
             assert len(q.explanation) <= 30, q.id
     for t in BANK.tracks:
         assert len(t.explanation) <= 32, t.key
+
+
+def test_every_english_track_has_its_composer_and_no_hint_leaks_it_early():
+    assert {t.key: t.composer for t in BANK.tracks} == {
+        "dm": "Camille Saint-Saëns", "hk": "Edvard Grieg", "tf": "Johann Sebastian Bach"}
+    for t in BANK.tracks:
+        assert t.composer == t.credit.author  # the credit and the third spoken hint agree
+        assert all(t.composer.casefold() not in c.casefold() for c in t.clues)
+        assert t.composer.casefold() not in f"{t.category} {t.text}".casefold()

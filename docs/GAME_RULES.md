@@ -86,9 +86,22 @@ Flow: presentation gate → MC reads (wait for real playback end) → 20 s priva
 - **During music the MC is idle and the mic is closed** (no MC output, no mic forwarding to Live). The speakers would otherwise feed the music into the mic; software echo cancellation is off.
 - A buzz emits `buzzer.pressed {mediaInterrupted: true}`. The stage stops the music within 100 ms and sends `stage.media_ended(interrupted)`. The answer mic opens only after the matching `media_ended` or the 800 ms fallback.
 - A natural end opens a 10 s buzz window. Check asset, hint level, reason and absolute position; stale or duplicate ends cannot advance again.
-- **Hints:** when everyone is wrong or the open window times out, the next hint level resets eligibility, goes through an `av.hint` gate and a short acknowledged MC line, then replays a **longer** clip (levels 0–2; e.g. 6/8 s → 14–20 s → full 30 s). At the max level, exhaustion goes to suspense and reveal.
-- Each hint level has a private MC clue (instrument, mood, form — never the title). The MC says "Hint N, buzzers open again, a longer listen" plus the clue in two sentences at most, then "Let's listen again" — it does not re-read the question.
+- **The automatic ladder (longer listens):** when everyone is wrong or the open window times out, the next level resets eligibility, goes through an `av.hint` gate and one short acknowledged MC line ("a longer listen"), then replays a **longer** clip (levels 0–2; e.g. 7 s → 16 s → full 30 s). At the max level, exhaustion goes to suspense and reveal. **The ladder speaks no clue.** The stage board still reads "HINT n · LONGER!" (frozen); the MC says only that the clip is longer.
+- **Spoken hints come only on request** (§6.2). Each track has two private clues and a private composer (`khqs.bank/1`: `clues`, `composer`).
 - Credits (title, composer, performer, license, source) are sent only in `answer.revealed.credit`.
+
+### 6.2 Asking for a hint (music question only)
+
+A player who holds the buzzer, during the clip or after it, at any level, may ask for a hint instead of answering. A request is not an answer: it is never final, it locks nobody out and it spends no answer window.
+
+- **Voice.** The live MC reports what it heard with `report_answer`, verbatim. The **engine** decides locally (`rules/hints.py`) whether the text is a hint request: the words hint, hints, clue, clues, help, or the phrases "too hard", "too difficult", "so hard", "so difficult", "I give up", "give up". **A heard text that matches the answer by §9.3 is always an answer.** Only a clear, voiced utterance counts.
+- **Phone.** A HINT button next to the answer field, and on the voice screen, while that player holds the buzzer (`phone_action {type:"hint"}`). Typing the word "hint" into the answer field is an answer.
+- **Consent.** With at least one other connected player the MC asks the others in one short, playful line; the engine opens an 8 s window (`hint_consent_ms`). Spoken votes arrive through `report_vote` (verbatim, classified locally): agree = yes, yeah, yep, sure, ok, okay, fine, go ahead, agree, of course, why not, alright… ; refuse = no, nope, nah, never, no way, not really, absolutely not… ; "no problem" and "I don't mind" are agreement; anything else is unclear and ignored. Phones show AGREE / NO (select, then LOCK IN; the first vote is final). **Any refusal refuses** and ends the window at once. Everyone else saying yes ends it early. **Silence or unclear speech until the window ends counts as agree** (the MC may joke "Silence means yes!"). Solo, or nobody else connected: no window, the MC grants it with a joke.
+- **Granted.** The MC gives the next hint, two sentences at most, never the title, in this order: clue 1, clue 2, the composer ("It's by Edvard Grieg!"). The requester then gets a fresh, normal answer window, still holding the buzzer. Right is +20 as usual; wrong locks them out as usual, and the round goes on for the others or up the ladder.
+- **Refused.** The MC teases briefly; the requester answers now, without a hint, with the normal window and rules.
+- **Limits.** At most three spoken hints per music question (so with three players every ask can be granted, never more). Each player may ask **once** per music question; a refused ask counts as asked but gives no hint. A request that cannot be granted gets "No hints left!" once, then the player answers; a further hint phrase in that window is just an answer.
+- **Stage.** Nothing new on the wire. The stage shows `phase.changed buzzer.hint` (board text "HINT!") while the MC asks and gives the hint, and the MC caption of the spoken line (the granted composer passes the caption filter; the title and the credit never do). Votes and requests are never on the stream.
+- **Secrecy.** A clue or the composer goes to the MC only in the `hint_grant` cue, at the moment it is granted.
 
 ## 7. Act 3 — final
 

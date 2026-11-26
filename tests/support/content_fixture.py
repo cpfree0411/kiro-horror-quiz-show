@@ -7,10 +7,10 @@ from khqs.content.model import (BuzzerQuestion, ContentBank, Credit, FinalQuesti
                                 QuestionSet)
 
 
-def _track(key, asset, title, aliases, expl, clues, credit_title):
+def _track(key, asset, title, aliases, expl, clues, credit_title, composer):
     return MusicTrack(
         key=key, asset_id=asset, bytes=412000, duration_sec=30.0, answer=title, aliases=tuple(aliases),
-        explanation=expl, clips=((12.0, 20.0), (0.0, 16.0), (0.0, 30.0)), clues=tuple(clues),
+        explanation=expl, clips=((12.0, 20.0), (0.0, 16.0), (0.0, 30.0)), clues=tuple(clues), composer=composer,
         credit=Credit(title=credit_title, author="Test Composer", performer="Test Orchestra",
                       license="Public domain (fixture)", source="https://example.invalid/fixture"))
 
@@ -18,13 +18,13 @@ def _track(key, asset, title, aliases, expl, clues, credit_title):
 TRACKS = (
     _track("dm", "a-3f9c1d2e7b40", "Danse Macabre", ["Danse Macabre", "죽음의 무도", "Dance Macabre"],
            "Saint-Saëns, Danse Macabre", ["It is played by a full orchestra with a solo fiddle.", "A clock strikes twelve at the start."],
-           "Danse macabre"),
+           "Danse macabre", "Camille Saint-Saëns"),
     _track("hk", "a-8a1d00c2f917", "In the Hall of the Mountain King", ["Hall of the Mountain King", "산왕의 궁전"],
            "Grieg, In the Hall of the Mountain King", ["It starts quietly and keeps speeding up.", "The tune creeps along low strings."],
-           "In the Hall of the Mountain King"),
+           "In the Hall of the Mountain King", "Edvard Grieg"),
     _track("tf", "a-c47e5b09d3a2", "Toccata and Fugue in D minor", ["Toccata and Fugue", "토카타와 푸가", "토카타 푸가"],
            "Bach, Toccata and Fugue in D minor", ["It is played on a very big keyboard instrument.", "Three quick notes open it."],
-           "Toccata and Fugue in D minor"),
+           "Toccata and Fugue in D minor", "Johann Sebastian Bach"),
 )
 
 SET_A = QuestionSet(

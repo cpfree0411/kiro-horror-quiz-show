@@ -39,6 +39,7 @@ class EngineConfig:
     buzzer_answer_ms: int = 20_000  # 60_000 with the live voice MC (retries and phone fallback need the room)
     buzzer_open_ms: int = 15_000
     music_open_ms: int = 10_000
+    hint_consent_ms: int = 8_000  # the others' yes or no to a requested hint; silence counts as yes
     media_interrupt_wait_ms: int = 800
     media_watchdog_extra_ms: int = 1_000
     media_end_tolerance_sec: float = 1.5

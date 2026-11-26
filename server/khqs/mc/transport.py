@@ -66,6 +66,8 @@ TOOLS = (
      {"heard": "string", "recognition": ["clear", "unclear"]}),
     ("report_reason", "Report the reason a player just spoke for their pick. `heard` is exactly the words spoken, verbatim.", {"heard": "string"}),
     ("report_decision", "Report whether the player said to keep their answer or switch it.", {"decision": ["keep", "switch", "unclear"]}),
+    ("report_vote", "Report what the other players just said when asked whether they agree to give a hint. `heard` is exactly the words spoken, verbatim. `recognition` is clear or unclear.",
+     {"heard": "string", "recognition": ["clear", "unclear"]}),
 )
 
 

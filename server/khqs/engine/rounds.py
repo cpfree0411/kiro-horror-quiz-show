@@ -34,6 +34,31 @@ class OxRound:
 
 
 @dataclass
+class Consent:
+    """The short window in which the other players say whether the requester may have a hint (private)."""
+    seat: int  # the requester
+    voters: tuple[int, ...]
+    deadline: int
+    listen_id: str | None = None
+    votes: dict[int, bool] = field(default_factory=dict)  # phone votes by seat: True = agree
+    voice_yes: int = 0  # spoken agreements (the room mic cannot tell who spoke)
+    voice_no: int = 0
+
+    @property
+    def refused(self) -> bool:
+        return self.voice_no > 0 or not all(self.votes.values())
+
+    @property
+    def explicit_yes(self) -> int:
+        return sum(self.votes.values()) + self.voice_yes
+
+    @property
+    def complete(self) -> bool:
+        """Everyone said yes, or somebody said no: nothing more to wait for."""
+        return self.refused or self.explicit_yes >= len(self.voters)
+
+
+@dataclass
 class BuzzRound:
     armed: bool = False  # buzzer accepts presses right now
     holder: int | None = None
@@ -56,6 +81,13 @@ class BuzzRound:
     interrupt_pending: bool = False
     interrupted_at: int = 0
     media_end: tuple[str, float] | None = None
+    # spoken hints on request (private, music question only)
+    hint_asked: set[int] = field(default_factory=set)  # seats that asked once already
+    hints_given: int = 0  # 0..3: clue 1, clue 2, the composer
+    hint_request: bool = False  # the holder asked for a hint; the flow picks it up
+    hint_notice: bool = False  # "no hints" was already said in this answer turn
+    consent: Consent | None = None
+    composer_out: bool = False  # the composer was handed to the MC: no longer secret
 
 
 @dataclass

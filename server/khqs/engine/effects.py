@@ -35,7 +35,7 @@ class McSay:
 class McListen:
     listen_id: str
     seat: int
-    purpose: str  # answer | reason | decision
+    purpose: str  # answer | reason | decision | consent
     attempt: int
     deadline: int
 
@@ -67,7 +67,11 @@ CUE_FACTS: dict[str, frozenset[str]] = {
     "read_ox": frozenset({"number", "category", "text"}),
     "read_buzzer": frozenset({"number", "category", "text", "resume"}),
     "intro_music": frozenset({"number", "category"}),
-    "hint_line": frozenset({"level", "max_level", "clue"}),
+    "longer_listen": frozenset({"level", "max_level"}),
+    "hint_ask": frozenset({"name"}),
+    "hint_grant": frozenset({"name", "how", "kind", "text", "number"}),
+    "hint_refused": frozenset({"name"}),
+    "hint_none": frozenset({"name", "why"}),
     "suspense": frozenset({"kind"}),
     "ask_reason": frozenset({"name", "choice"}),
     "offer_switch": frozenset({"name", "choice"}),

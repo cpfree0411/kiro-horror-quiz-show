@@ -48,7 +48,7 @@ def test_every_field_the_engine_needs_is_in_the_file_format():
     d = good()
     assert set(d) == {"format", "sets", "tracks"}
     assert set(d["sets"][0]) == {"id", "musicPosition", "ox", "buzzers", "final"}
-    assert set(d["tracks"][0]) >= {"assetId", "file", "durationSec", "answer", "aliases", "explanation", "clips", "clues", "credit"}
+    assert set(d["tracks"][0]) >= {"assetId", "file", "durationSec", "answer", "aliases", "explanation", "clips", "clues", "composer", "credit"}
     game = load_bank(DEV_BANK_PATH, MEDIA).select(0, __import__("random").Random(1))
     assert len(game.questions) == 8 and game.track.clips and len(game.track.clues) == 2
 
@@ -76,6 +76,12 @@ def test_every_field_the_engine_needs_is_in_the_file_format():
     (lambda d: d["tracks"][0].update(clues=["only one"]), "needs 2 clues"),
     (lambda d: d["tracks"][0].update(clues=["It is Danse Macabre!", "x"]), "a clue contains the title"),
     (lambda d: d["tracks"][0].update(category="Danse Macabre Night"), "appears in the category or text"),
+    (lambda d: d["tracks"][0].pop("composer"), "missing field 'composer'"),
+    (lambda d: d["tracks"][0].update(composer=""), "composer: must be a non-empty string"),
+    (lambda d: d["tracks"][0].update(composer="   "), "composer: must be a non-empty string"),
+    (lambda d: d["tracks"][0].update(composer=7), "composer: must be a non-empty string"),
+    (lambda d: d["tracks"][0].update(clues=["By Camille Saint-Saëns, of course.", "x"]), "a clue contains the composer"),
+    (lambda d: d["tracks"][0].update(text="A piece by Camille Saint-Saëns?"), "the composer ('Camille Saint-Saëns') appears in the category or text"),
     (lambda d: d["tracks"][0]["credit"].pop("license"), "missing field 'license'"),
     (lambda d: d["tracks"][1].update(assetId=d["tracks"][0]["assetId"]), "duplicate assetId"),
     (lambda d: d["sets"][1]["ox"][0].update(id=d["sets"][0]["ox"][0]["id"]), "duplicate question id"),
@@ -115,3 +121,11 @@ def test_validator_command_ok_and_failing(tmp_path):
     assert bad.returncode == 1
     assert "ERROR   dev-a/q-bz-01: the answer or an alias ('Mirror') appears in the category or text" in bad.stdout
     assert "gone.mp3" in bad.stdout and "is NOT usable" in bad.stdout
+
+
+def test_the_composer_is_a_required_private_string_on_every_track_and_round_trips():
+    bank = load_bank(DEV_BANK_PATH, MEDIA)
+    assert {t.key: t.composer for t in bank.tracks} == {"dm": "Camille Saint-Saëns", "hk": "Edvard Grieg", "tf": "Johann Sebastian Bach"}
+    assert [t.composer for t in bank.tracks] == [d["composer"] for d in bank_to_dict(bank)["tracks"]]
+    t = bank.tracks[0]
+    assert t.hints == (("clue", t.clues[0]), ("clue", t.clues[1]), ("composer", "Camille Saint-Saëns"))  # the spoken order

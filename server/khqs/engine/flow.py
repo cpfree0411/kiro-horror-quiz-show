@@ -7,7 +7,7 @@ from __future__ import annotations
 from ..rules import betrayal as btr
 from ..rules import scoring
 from ..rules.judge import answer_matches
-from .rounds import BetrayalState, BuzzRound, FinalRound, OxRound
+from .rounds import BetrayalState, BuzzRound, Consent, FinalRound, OxRound
 from .waits import Wait
 
 ACT_TITLES = {1: "Act 1 · O/X", 2: "Act 2 · Buzzer", 3: "FINAL BET"}
@@ -188,19 +188,31 @@ def betrayal_chance(eng, r):
 
 # ---------------------------------------------------------------------------- act 2
 def answer_phase(eng, q, rnd):
-    """The holder answers (voice or phone), the engine judges once, a gate shows the verdict."""
+    """The holder answers (voice or phone), the engine judges once, a gate shows the verdict.
+
+    Music question only: the holder may ask for a hint instead of answering. The hint flow runs (consent, then the hint
+    or a refusal) and the holder gets a fresh, normal answer window. A request is not an answer.
+    """
     seat = rnd.holder
     p = eng.players[seat]
     if rnd.interrupt_pending:  # music: wait for media_ended(interrupted), at most 800 ms
         yield Wait(until=rnd.interrupted_at + eng.cfg.media_interrupt_wait_ms, ready=lambda: rnd.media_end is not None)
         rnd.interrupt_pending, rnd.clip, rnd.media_end = False, None, None
         eng.set_mic(True, "answer")
-    deadline = eng.now() + eng.cfg.buzzer_answer_ms
-    eng.set_phase("buzzer.answering", deadline)
-    eng.begin_answer(rnd, seat, deadline)
-    yield Wait(until=deadline, ready=lambda: rnd.answer is not None)
+    rnd.hint_notice = False
+    while True:
+        rnd.hint_request = False
+        deadline = eng.now() + eng.cfg.buzzer_answer_ms
+        eng.set_phase("buzzer.answering", deadline)
+        eng.begin_answer(rnd, seat, deadline)
+        yield Wait(until=deadline, ready=lambda: rnd.answer is not None or rnd.hint_request)
+        eng.end_answer(rnd)
+        if rnd.hint_request and rnd.answer is None:
+            rnd.hint_request = False
+            yield from hint_turn(eng, q, rnd, seat)
+            continue
+        break
     heard = rnd.answer[0] if rnd.answer else ""
-    eng.end_answer(rnd)
     correct = bool(heard) and answer_matches(heard, q.answer, q.aliases, q.kind)
     rnd.answer = None
     rnd.attempts.append((seat, correct))
@@ -215,6 +227,48 @@ def answer_phase(eng, q, rnd):
         reaction=("react_judge", {"name": p.name, "correct": correct}),
     )
     yield from run_gate(eng, g)
+
+
+def hint_turn(eng, q, rnd, seat):
+    """The holder asked for a hint. Consent, then a spoken hint or a refusal. Always followed by an answer window."""
+    name = eng.players[seat].name
+    track = q.track
+    eng.set_phase("buzzer.hint")  # the stage shows "HINT!"; the MC voice and the phones carry the rest
+    if not eng.can_ask_hint(seat):  # already asked, or all three hints are out: say so once, then the player must answer
+        rnd.hint_notice = True
+        why = "used" if seat in rnd.hint_asked else "none_left"
+        tok = eng.say("hint_none", {"name": name, "why": why})
+        yield from say_wait(eng, tok)
+        return
+    rnd.hint_asked.add(seat)
+    voters = tuple(s for s in eng.connected_seats() if s != seat)
+    how = "solo"
+    if voters:
+        tok = eng.say("hint_ask", {"name": name})
+        yield from say_wait(eng, tok)
+        dl = eng.now() + eng.cfg.hint_consent_ms
+        eng.input_deadline = dl
+        c = Consent(seat=seat, voters=voters, deadline=dl)
+        rnd.consent = c
+        c.listen_id = eng.listen(seat, "consent", 1, dl)
+        eng._touch_all()
+        yield Wait(until=dl, ready=lambda: c.complete)
+        eng.stop_listen(c.listen_id)
+        c.listen_id = None
+        eng.input_deadline = None
+        rnd.consent = None
+        eng._touch_all()
+        if c.refused:
+            tok = eng.say("hint_refused", {"name": name})
+            yield from say_wait(eng, tok)
+            return
+        how = "agreed" if c.explicit_yes else "silence"
+    kind, text = track.hints[rnd.hints_given]
+    rnd.hints_given += 1
+    if kind == "composer":
+        rnd.composer_out = True  # from now on the composer may appear in the MC's caption
+    tok = eng.say("hint_grant", {"name": name, "how": how, "kind": kind, "text": text, "number": rnd.hints_given})
+    yield from say_wait(eng, tok)
 
 
 def finish_buzzer(eng, q, rnd):
@@ -311,13 +365,13 @@ def music_question(eng, q):
                 break
         if rnd.winner is not None or level >= max_level:
             break
-        level += 1  # hint: reset eligibility, MC clue, longer clip
+        level += 1  # the next level: reset eligibility, a short MC line, a longer clip (spoken hints come only on request)
         rnd.locked, rnd.armed = [], False
         eng.hint_level = level
         eng.set_phase("buzzer.hint")
         g = eng.open_gate(
             "av.hint", {"level": level, "media": {"assetId": track.asset_id, "mediaType": "audio"}},
-            reaction=("hint_line", {"level": level, "max_level": max_level, "clue": track.clues[level - 1]}),
+            reaction=("longer_listen", {"level": level, "max_level": max_level}),
         )
         yield from run_gate(eng, g)
     yield from finish_buzzer(eng, q, rnd)

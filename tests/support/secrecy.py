@@ -27,6 +27,20 @@ def question_secrets(q) -> list[str]:
     return [s for s in out if len(s) >= 3]
 
 
+def hint_secrets(q) -> list[str]:
+    """The private spoken hints of a music question: its clues and its composer. They are secret until the MC is handed them."""
+    return [t for _kind, t in q.track.hints] if q.kind == "av" and q.track else []
+
+
+def hint_grants(sim) -> dict[str, int]:
+    """normalised hint text -> stream position of the first `hint_grant` cue that handed it to the MC."""
+    out: dict[str, int] = {}
+    for sseq_at, e, _t in sim.mc_fx:
+        if isinstance(e, McSay) and e.cue == "hint_grant":
+            out.setdefault(_norm(e.facts["text"]), sseq_at)
+    return out
+
+
 def _blob(x) -> str:
     return _norm(json.dumps(x, ensure_ascii=False))
 
@@ -42,9 +56,28 @@ def assert_no_leaks(sim, canary_bets: dict[int, int] | None = None) -> None:
     problems: list[str] = []
 
     # --- answers, aliases, explanations, credits
+    grants = hint_grants(sim)
     for q in content.questions:
         r = reveal.get(q.id, end)
-        secrets = [_norm(s) for s in question_secrets(q)]
+        hints = {_norm(h) for h in hint_secrets(q)}
+        secrets = [_norm(s) for s in question_secrets(q) if _norm(s) not in hints]
+        # a clue or the composer is secret until the MC is handed it on request (the hint_grant cue); then it may appear in captions
+        for h in sorted(hints):
+            at = min(r, grants.get(h, end))
+            if len(h) < 3:
+                continue
+            for m in sim.stream:
+                if m["sseq"] < at and h in _blob(m["data"]):
+                    problems.append(f"stream #{m['sseq']} {m['type']} leaks the hint {h!r} of {q.id}")
+            for snap in sim.snapshots:
+                if snap["sseq"] < at and h in _blob(snap["data"]):
+                    problems.append(f"snapshot #{snap['sseq']} leaks the hint {h!r} of {q.id}")
+            for sseq, views in sim.views:
+                if sseq < at and h in _blob(views):
+                    problems.append(f"phone view @{sseq} leaks the hint {h!r} of {q.id}")
+            for sseq_at, e, _t in sim.mc_fx:
+                if sseq_at < at and isinstance(e, (McSay, McListen)) and h in _blob(getattr(e, "facts", {})):
+                    problems.append(f"MC {getattr(e, 'cue', 'listen')} @{sseq_at} leaks the hint {h!r} of {q.id}")
         # the text itself of a final's correct choice is public (it is on the board)
         for m in sim.stream:
             if m["sseq"] < r:

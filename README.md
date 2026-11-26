@@ -2,7 +2,7 @@
 
 A kitschy, cute Halloween quiz show in the browser. A ghost MC hosts, one to three players answer with their phones, and the stage is a pre-made animated set. Built for the Kiroween hackathon.
 
-**Status: phases P0 to P4 are done.** The show runs end to end on the real stage with either a free mock MC (default) or the Gemini Live voice MC, players on phones or the on-screen pad, and the English question bank `banks/en-bank.json`. What is left: package the submission (P5), see "Handoff" below.
+**Status: phases P0 to P4, P6 and P7 are done.** The show runs end to end on the real stage with either a free mock MC (default) or the Gemini Live voice MC, players on phones or the on-screen pad, and the English question bank `banks/en-bank.json`. What is left: package the submission (P5), see "Handoff" below.
 
 ## What was made before Kiro, and what was made with Kiro
 
@@ -11,7 +11,7 @@ A kitschy, cute Halloween quiz show in the browser. A ghost MC hosts, one to thr
 - the `khqs.stage/1` protocol, its schema, scenarios and validator (`interface/`)
 - an earlier private prototype whose lessons are written into `docs/`
 
-**Made with Kiro in this repo (P0 to P3, and P6):** the engine, server, connector, mock MC, Gemini Live MC, phone UI, the question bank format and loader, the public demo mode and its guards, the soak and leak checks, the Kiro hooks, tests and docs written after the handoff. How Kiro was used, phase by phase, is in [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md). Specs and steering are in [`.kiro/specs`](.kiro/specs) and [`.kiro/steering`](.kiro/steering). This list grows phase by phase.
+**Made with Kiro in this repo (P0 to P3, P6 and P7):** the engine, server, connector, mock MC, Gemini Live MC, phone UI, the question bank format and loader, the public demo mode and its guards, the soak and leak checks, the Kiro hooks, spoken hints in the music question, tests and docs written after the handoff. How Kiro was used, phase by phase, is in [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md). Specs and steering are in [`.kiro/specs`](.kiro/specs) and [`.kiro/steering`](.kiro/steering). This list grows phase by phase.
 
 **Made after Kiro, with Claude Code (P4):** the English question content in `banks/en-bank.json` and its test `tests/test_en_bank.py`.
 
@@ -68,6 +68,10 @@ Ports 8814, 18815, 18817 and 18818 belong to other services and are refused.
 
 `KHQS_MC=live` makes the START sign (a) ask the browser for microphone permission, (b) open the audio socket `/ws/mc`, (c) open **one** Gemini Live session, and only then start the show. Failures write `MIC NEEDED` or `MC OFFLINE — TRY AGAIN` in the lobby. The microphone needs a secure context, so use `localhost` (the SSH tunnel). The MC speaks and listens in English only. Spoken answers come back as tool calls with `heard` verbatim; the engine judges them locally, and the model never sees an answer, alias or explanation before the reveal. If the session ends (error, cap, provider GoAway without resumption), the MC goes offline, the show continues with phone typing, and the chip offers RECONNECT MC (an explicit action; there is no automatic reconnect). Caps: 40 minutes per session, 240 s without show activity, 35 s response or playback stall. Free-tier note: each START or reconnect opens one real session.
 
+### Hints in the music question
+
+The clip gets longer after a failed level by itself (levels 0 to 2, one short MC line, no clue). Spoken hints come only on request: a player who holds the buzzer says "give me a hint" (the MC reports the words, the engine decides) or taps HINT? on the phone. With other players present the MC asks them, the engine opens an 8 s window, they say or tap yes or no (any refusal refuses; silence counts as yes), and then the MC gives clue 1, clue 2 or the composer. The requester answers at once; right is +20, wrong locks out as usual. Each player may ask once, at most three hints per question. Rules: `docs/GAME_RULES.md` §6.2. Each track in a bank needs a `composer` (`docs/QUESTION_BANK_FORMAT.md`).
+
 ### Public demo mode
 
 `docs/PUBLIC_DEMO.md` explains how the show can sit behind a tunnel: visitors get the stage, phones and the mock MC only; operator actions and the live MC need the operator secret from a local request; one game at a time with the §11 caps; per-address rate limits. Nothing is deployed from this repo.
@@ -115,7 +119,7 @@ Not chosen yet; the owner decides before submission. Plan: MIT for the code writ
 
 ## Tests
 
-`scripts/test.sh` runs the fast suite (about two to three minutes). Tests never call the Gemini API; the live MC is tested with a fake transport.
+`scripts/test.sh` runs the fast suite (about three to four minutes). Tests never call the Gemini API; the live MC is tested with a fake transport.
 
 Slow tests (`scripts/test.sh -m slow <file>`, run them in parallel processes): `tests/e2e/test_live_games.py -k players1|players2|players3` (full games in a real browser, 3-5 min each), `tests/e2e/test_live_misc.py` (replay hashes, `#demo`, reload and take-over), `tests/e2e/test_live_mc_browser.py` (a full game through the browser audio host with a fake Live transport), `tests/e2e/test_stage_demo_static.py` (the stage alone), plus `tests/server/test_live_mc.py -k nothing_sent` and `tests/server/test_sockets_and_api.py -k pump_runs`.
 
@@ -137,4 +141,4 @@ Evidence from each phase (screenshots, logs, real-run reports) is in `/srv/workd
 - The MC does not understand other languages (English only, owner decision).
 - One live session at a time; the free tier has rate and session limits, so a failed connect is reported, never retried.
 - Only the stage page (loopback) can start or reconnect the live MC; the phone port cannot.
-- Sound is verified only in headless runs plus the owner's hands-on test of P2 (music and finale worked); the live voice has not been heard by a human yet.
+- Sound is verified only in headless runs plus the owner's hands-on test of P2 (music and finale worked); the owner's live-voice play test of a full game went well, but it was one session, and the spoken hint request and the spoken yes/no of P7 are covered by tests with a fake Live session only, not yet by a human voice.

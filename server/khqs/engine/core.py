@@ -14,6 +14,7 @@ from typing import Callable, Optional
 
 from ..clock import Clock
 from ..content.model import ContentBank, GameContent, Question
+from ..rules import hints as hint_rules
 from ..rules import scoring
 from ..rules.captions import CaptionFilter, CaptionSecrets
 from ..rules.judge import normalize
@@ -469,6 +470,7 @@ class Engine:
             "ox": self._a_ox, "buzz": self._a_buzz, "text_answer": self._a_text_answer,
             "choose_typing": self._a_choose_typing, "betrayal_reason": self._a_reason,
             "betrayal_decision": self._a_decision, "bet": self._a_bet, "final_choice": self._a_final_choice,
+            "hint": self._a_hint, "hint_vote": self._a_hint_vote,
         }.get(action["type"])
         if handler is None:
             return Result(False, "bad_input")
@@ -536,6 +538,35 @@ class Engine:
         r.text_box = True
         self.stop_listen(r.listen_id)
         r.listen_id = None
+        return Result(True)
+
+    def can_ask_hint(self, seat: int) -> bool:
+        """The music question only: each player once, and at most clue 1, clue 2 and the composer in total."""
+        r, q = self.round, self.q
+        return (isinstance(r, BuzzRound) and q is not None and q.kind == "av" and q.track is not None
+                and seat not in r.hint_asked and r.hints_given < len(q.track.hints))
+
+    def _a_hint(self, p: Player, a: dict) -> Result:
+        """The holder asks for a hint instead of answering (phone button). Not an answer: nothing is locked."""
+        r = self.round
+        if not isinstance(r, BuzzRound) or self.phase != "buzzer.answering" or r.holder != p.seat or r.answer is not None \
+                or r.hint_request or self.q is None or self.q.kind != "av":
+            return Result(False, "not_now")
+        if not self.can_ask_hint(p.seat):
+            return Result(False, "no_hints")
+        r.hint_request = True
+        return Result(True)
+
+    def _a_hint_vote(self, p: Player, a: dict) -> Result:
+        r = self.round
+        c = r.consent if isinstance(r, BuzzRound) else None
+        if c is None or self.phase != "buzzer.hint" or p.seat not in c.voters:
+            return Result(False, "not_now")
+        if type(a.get("agree")) is not bool:
+            return Result(False, "bad_input")
+        if p.seat in c.votes:
+            return Result(False, "already_answered")
+        c.votes[p.seat] = a["agree"]
         return Result(True)
 
     def _a_reason(self, p: Player, a: dict) -> Result:
@@ -646,7 +677,13 @@ class Engine:
         r.listen_id = None
         seat = r.holder
         text = heard.strip()[:HEARD_MAX] if isinstance(heard, str) else ""
-        if recognition == "clear" and voiced is True and text:
+        q = self.q
+        if recognition == "clear" and voiced is True and text and q is not None and q.kind == "av" and not r.hint_notice \
+                and hint_rules.is_hint_request(text, q.answer, q.aliases, q.kind):
+            r.hint_request = True  # decided here, locally; the model only reported the words. Never an answer.
+            if self.mc_status == "listening":
+                self._set_mc("idle")
+        elif recognition == "clear" and voiced is True and text:
             r.answer = (text, "voice")
             if self.mc_status == "listening":
                 self._set_mc("idle")
@@ -663,6 +700,23 @@ class Engine:
                 if self.mc_status == "listening":
                     self._set_mc("idle")
             self._touch(seat)
+        self._check()
+        return True
+
+    def mc_voice_consent(self, listen_id: str, heard: str, recognition: str, voiced: bool) -> bool:
+        """A spoken yes or no from the room during the consent window. Unclear speech changes nothing."""
+        r = self.round
+        c = r.consent if isinstance(r, BuzzRound) else None
+        if c is None or listen_id is None or c.listen_id != listen_id or self.phase != "buzzer.hint":
+            return False
+        text = heard.strip()[:HEARD_MAX] if isinstance(heard, str) else ""
+        if recognition == "clear" and voiced is True and text:
+            verdict = hint_rules.classify_consent(text)
+            if verdict == hint_rules.AGREE:
+                c.voice_yes += 1
+            elif verdict == hint_rules.REFUSE:
+                c.voice_no += 1
+        self._touch_all()
         self._check()
         return True
 
@@ -714,7 +768,11 @@ class Engine:
             phrases += [q.answer, *q.aliases]
         if q.kind == "av" and q.track:
             c = q.track.credit
-            phrases += [x for x in (c.title, c.author, c.performer) if x]
+            phrases += [x for x in (c.title, c.author, c.performer, q.track.composer) if x]
+            r = self.round
+            if isinstance(r, BuzzRound) and r.composer_out and q.track.composer:  # handed to the MC on request: now public
+                key = normalize(q.track.composer)
+                phrases = [x for x in phrases if normalize(x) != key]
         if q.kind == "final" and q.choices:
             phrases.append(q.choices["ABCD".index(q.answer)])
         letter = "ox" if q.kind == "ox" else "letters" if q.kind == "final" else None

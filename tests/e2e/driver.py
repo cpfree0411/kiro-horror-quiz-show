@@ -165,6 +165,14 @@ class Show:
                 who = plan["buzz"](qn, len(eng.round.attempts), eng.phase)
                 if who == seat and self.once(("buzz", qn, len(eng.round.attempts), eng.phase)):
                     p.target.click("#buzz")
+            elif scr == "answer_text" and plan.get("hint") and v["own"].get("canHint") and plan["hint"](qn, seat, len(eng.round.attempts)) \
+                    and self.once(("hint", qn, seat)):
+                p.target.click("#hint")  # P7: ask for a spoken hint instead of answering
+            elif scr == "hint_vote" and plan.get("vote") and self.once(("vote", qn, seat, len(eng.round.hint_asked))):
+                agree = plan["vote"](qn, seat, len(eng.round.attempts))
+                self.click_lock(p, f'[data-vote="{"yes" if agree else "no"}"]')
+            elif scr == "answer_text" and ("hint", qn, seat) in self.acted and v["own"].get("canHint"):
+                pass  # the HINT tap was just sent and this view is stale: do not spend the answer on it
             elif scr == "answer_text" and self.once(("text", qn, seat, len(eng.round.attempts))):
                 p.target.fill("#answer-text", plan["text"](qn, seat, len(eng.round.attempts)))
                 p.target.click("#send-answer")

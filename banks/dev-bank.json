@@ -178,6 +178,7 @@
         "A solo fiddle plays tricks with an out-of-tune string.",
         "A clock strikes twelve at the start."
       ],
+      "composer": "Camille Saint-Saëns",
       "credit": {
         "title": "Danse macabre, Op. 40",
         "license": "Public domain (US): PD-US-record-expired",
@@ -217,6 +218,7 @@
         "It starts quietly and keeps speeding up.",
         "The tune creeps along on low strings."
       ],
+      "composer": "Edvard Grieg",
       "credit": {
         "title": "In the Hall of the Mountain King (Peer Gynt Suite No. 1, Op. 46)",
         "license": "Public domain (Musopen)",
@@ -256,6 +258,7 @@
         "It is played on a very big keyboard instrument.",
         "Three quick notes open it."
       ],
+      "composer": "Johann Sebastian Bach",
       "credit": {
         "title": "Toccata and Fugue in D minor, BWV 565",
         "license": "CC BY-SA 3.0",

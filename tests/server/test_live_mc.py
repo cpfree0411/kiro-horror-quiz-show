@@ -377,7 +377,7 @@ def test_gemini_transport_reads_the_key_only_at_connect_never_stores_or_logs_it(
         assert cfg.session_resumption.handle == "resume-1" and cfg.output_audio_transcription is not None
         assert cfg.input_audio_transcription is None  # player speech is never transcribed
         assert cfg.realtime_input_config.automatic_activity_detection.disabled is True
-        assert [d.name for d in cfg.tools[0].function_declarations] == ["report_answer", "report_reason", "report_decision"]
+        assert [d.name for d in cfg.tools[0].function_declarations] == ["report_answer", "report_reason", "report_decision", "report_vote"]
         await tr.close()
     run(main())
     assert "SENTINEL" not in caplog.text and "SENTINEL" not in log.read_text()
@@ -442,5 +442,114 @@ def test_a_buzz_that_cuts_a_reading_in_flight_still_opens_the_mic_after_the_prov
         rig.t.push(Interrupted()); rig.t.push(TurnComplete())
         await rig.until(lambda: rig.mc.listen is not None and rig.mc.listen.mic_open, timeout=5)
         assert rig.port.mic_log[-1] is True
+        await rig.down()
+    run(main())
+
+
+# ---------------------------------------------------------------- P7: a spoken hint request, consent by voice
+async def to_music_hold(rig, names=("Mina", "Junho", "Ray"), holder=1):
+    """Join, play act 1, let the first buzzer question lapse and buzz in on the music clip. Returns the engine track."""
+    for n in names:
+        rig.host.join(n)
+    rig.host.start()
+    track = rig.eng.content.track
+    for _ in range(3):
+        await rig.until(lambda: rig.eng.phase == "ox.answering")
+        for seat in rig.eng.players:
+            rig.host.run(rig.eng.phone_action, seat, {"type": "ox", "choice": "O"})
+        await rig.until(lambda: rig.eng.phase != "ox.answering")
+    await rig.until(lambda: rig.eng.q is not None and rig.eng.q.kind == "av" and rig.eng.phase.startswith("buzzer"), timeout=30)
+    rig.host.run(rig.eng.stage_message, "c1", {"type": "stage.media_ready", "data": {"assetIds": [track.asset_id]}})
+    await rig.until(lambda: rig.eng.phase == "buzzer.media" and rig.eng.round.armed, timeout=15)
+    assert rig.host.run(rig.eng.phone_action, holder, {"type": "buzz"}).ok
+    await rig.until(lambda: rig.mc.listen is not None and rig.mc.listen.purpose == "answer" and rig.mc.listen.mic_open, timeout=10)
+    return track
+
+
+async def speak(rig, tool, args, purpose):
+    """A person talks into the open mic; the fake model answers with this tool call when the speech ends."""
+    n = len(rig.t.tool_results)
+    rig.t.tool_script = lambda: [ToolCall(f"c-{n}", tool, args)]
+    await rig.until(lambda: rig.mc.listen is not None and rig.mc.listen.purpose == purpose and rig.mc.listen.mic_open, timeout=10)
+    ends = rig.t.activities.count(False)
+    for _ in range(12):
+        await rig.mc.on_mic(tone(20, 8000))
+    for _ in range(40):
+        await rig.mc.on_mic(tone(20, 20))
+        if rig.t.activities.count(False) > ends:
+            break
+    await rig.until(lambda: len(rig.t.tool_results) > n, timeout=5)
+
+
+def test_a_spoken_hint_request_is_reported_verbatim_and_the_engine_alone_decides():
+    async def main():
+        rig = await Rig().up()
+        track = await to_music_hold(rig)
+        await speak(rig, "report_answer", {"heard": "it's too hard, give me a hint", "recognition": "clear"}, "answer")
+        await rig.until(lambda: any(t.startswith("[CUE hint_ask]") for t in rig.t.turns), timeout=5)
+        assert rig.eng.round.hint_asked == {1} and not [m for m in rig.eng.stream if m["type"] == "buzzer.judged"]  # a request, not an answer
+        ask = [t for t in rig.t.turns if t.startswith("[CUE hint_ask]")][0]
+        assert "Mina wants a hint" in ask and "Give no hint" in ask
+        assert rig.t.tool_results[-1] == ("c-0", "report_answer", {"received": True})  # the receipt says nothing about the decision
+        # the model has been told nothing secret so far
+        sent = " ".join(rig.t.turns + rig.t.contexts + [rig.t.system_prompt])
+        for secret in (*track.clues, track.composer, track.answer, track.credit.title):
+            assert secret not in sent
+        await rig.down()
+    run(main())
+
+
+def test_consent_by_voice_two_reports_in_one_window_any_no_refuses_and_nothing_secret_is_sent():
+    async def main():
+        rig = await Rig().up()
+        track = await to_music_hold(rig)
+        await speak(rig, "report_answer", {"heard": "give me a hint", "recognition": "clear"}, "answer")
+        await rig.until(lambda: rig.mc.listen is not None and rig.mc.listen.purpose == "consent" and rig.mc.listen.mic_open, timeout=10)
+        assert any("report_vote" in c and "Mina" in c for c in rig.t.contexts)
+        await speak(rig, "report_vote", {"heard": "sure", "recognition": "clear"}, "consent")
+        assert rig.eng.round.consent is not None and rig.eng.round.consent.voice_yes == 1  # one of two voters: the window stays open
+        await rig.until(lambda: rig.mc.listen is not None and rig.mc.listen.rearms == 1 and rig.mc.listen.mic_open, timeout=5)
+        await speak(rig, "report_vote", {"heard": "no way!", "recognition": "clear"}, "consent")
+        await rig.until(lambda: any(t.startswith("[CUE hint_refused]") for t in rig.t.turns), timeout=5)
+        assert not any(t.startswith("[CUE hint_grant]") for t in rig.t.turns)
+        await rig.until(lambda: rig.eng.phase == "buzzer.answering" and rig.mc.listen is not None and rig.mc.listen.purpose == "answer", timeout=10)
+        sent = " ".join(rig.t.turns + rig.t.contexts)
+        for secret in (*track.clues, track.composer, track.answer):
+            assert secret not in sent
+        assert all(r[2] == {"received": True} for r in rig.t.tool_results)
+        await rig.down()
+    run(main())
+
+
+def test_an_agreed_hint_hands_the_model_exactly_one_clue_at_the_moment_it_is_granted():
+    async def main():
+        rig = await Rig().up()
+        track = await to_music_hold(rig, names=("Mina", "Junho"))
+        await speak(rig, "report_answer", {"heard": "hint please", "recognition": "clear"}, "answer")
+        await rig.until(lambda: rig.mc.listen is not None and rig.mc.listen.purpose == "consent" and rig.mc.listen.mic_open, timeout=10)
+        before = list(rig.t.turns)
+        assert not any(track.clues[0] in t for t in before)
+        await speak(rig, "report_vote", {"heard": "yes go ahead", "recognition": "clear"}, "consent")  # the only other player
+        await rig.until(lambda: any(t.startswith("[CUE hint_grant]") for t in rig.t.turns), timeout=5)
+        grant = [t for t in rig.t.turns if t.startswith("[CUE hint_grant]")][0]
+        assert track.clues[0] in grant and track.clues[1] not in grant and track.composer not in grant and track.answer not in grant
+        assert "number 1 of 3" in grant and "Your turn, Mina!" in grant
+        assert not any(track.clues[1] in t or track.composer in t for t in rig.t.turns)
+        await rig.until(lambda: rig.eng.phase == "buzzer.answering" and rig.mc.listen is not None and rig.mc.listen.purpose == "answer", timeout=10)
+        await speak(rig, "report_answer", {"heard": track.answer, "recognition": "clear"}, "answer")
+        await rig.until(lambda: any(m["type"] == "buzzer.judged" for m in rig.eng.stream), timeout=5)
+        assert [m for m in rig.eng.stream if m["type"] == "buzzer.judged"][0]["data"]["correct"] is True
+        await rig.down()
+    run(main())
+
+
+def test_a_consent_report_for_a_window_that_is_over_is_ignored():
+    async def main():
+        rig = await Rig().up()
+        await to_music_hold(rig, names=("Mina", "Junho"))
+        # no consent window is open: a stray report_vote gets its silent receipt and changes nothing
+        await rig.mc._on_tool(ToolCall("c-9", "report_vote", {"heard": "no", "recognition": "clear"}))
+        assert rig.t.tool_results[-1] == ("c-9", "report_vote", {"received": True})
+        assert rig.eng.round.consent is None and rig.eng.round.hint_asked == set() and rig.mc.listen.purpose == "answer"
         await rig.down()
     run(main())

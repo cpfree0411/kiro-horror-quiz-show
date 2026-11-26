@@ -14,7 +14,7 @@ from fasthost import FastHost
 
 SAMPLE = {"names": ["Mina", "Ray"], "mode": "competitive", "act": 1, "title": "Act 1 · O/X", "number": 4, "category": "C",
           "text": "Some question text here", "resume": False, "level": 1, "max_level": 2, "clue": "A clue.", "kind": "ox",
-          "name": "Mina", "choice": "O", "changed": True, "from": "O", "to": "X", "reason": "I KNEW IT", "answer": "O",
+          "name": "Mina", "how": "agreed", "why": "none_left", "choice": "O", "changed": True, "from": "O", "to": "X", "reason": "I KNEW IT", "answer": "O",
           "explanation": "Because.", "results": [], "correct": True, "attempt": 2, "scores": [], "choices": ["a", "b", "c", "d"],
           "winners": ["Mina"], "tie": False, "standings": []}
 

@@ -118,7 +118,7 @@ def _phone_frames_are_private(show):
             continue
         seen += 1
         v = m["view"]
-        assert set(v["own"]) <= {"pick", "canBuzz", "textBox", "betrayal", "maxBet", "bet", "choice"}, v["own"]
+        assert set(v["own"]) <= {"pick", "canBuzz", "textBox", "betrayal", "maxBet", "bet", "choice", "canHint", "hint"}, v["own"]
         if who.startswith("phone-"):
             assert v["you"]["name"] == who.split(":")[0][len("phone-"):], (who, v["you"])
     assert seen > 20

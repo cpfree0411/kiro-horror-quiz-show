@@ -4,5 +4,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 exec scripts/test.sh -q -x tests/test_rules_judge.py tests/test_rules_scoring_betrayal.py tests/test_rules_captions.py tests/test_content_model.py \
-  tests/test_bank_io.py tests/test_en_bank.py tests/test_mc_prompts_voice.py tests/test_guards.py tests/test_frozen_boundary.py \
+  tests/test_bank_io.py tests/test_en_bank.py tests/test_mc_prompts_voice.py tests/test_guards.py tests/test_hint_rules.py tests/test_frozen_boundary.py \
   -p no:cacheprovider

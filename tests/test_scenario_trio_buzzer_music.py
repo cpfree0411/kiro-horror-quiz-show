@@ -131,15 +131,15 @@ def test_music_collision_rules_and_interrupt():
     assert any(e.open for e in sim.mic_fx)
 
 
-def test_hint_resets_eligibility_and_uses_private_clue_only_in_the_mc_cue():
+def test_the_automatic_step_resets_eligibility_and_speaks_no_clue():
     sim, _ = make()
     sim.until_type("av.hint")
     hint = sim.of("av.hint")[0]["data"]
     assert hint["level"] == 1 and hint["media"] == {"assetId": "a-3f9c1d2e7b40", "mediaType": "audio"}
-    cues = [e for _, e, _ in sim.mc_fx if isinstance(e, McSay) and e.cue == "hint_line"]
     sim.until_type("score.settled", 5)
-    cue = [e for _, e, _ in sim.mc_fx if isinstance(e, McSay) and e.cue == "hint_line"][0]
-    assert cue.facts == {"level": 1, "max_level": 2, "clue": "It is played by a full orchestra with a solo fiddle."}
+    cue = [e for _, e, _ in sim.mc_fx if isinstance(e, McSay) and e.cue == "longer_listen"][0]
+    assert cue.facts == {"level": 1, "max_level": 2}  # a longer listen only: no clue, no hint on the ladder
+    assert not [e for _, e, _ in sim.mc_fx if isinstance(e, McSay) and e.cue.startswith("hint_")]
     assert "fiddle" not in repr(sim.stream)  # the clue never goes to the stage
     judged = sim.of("buzzer.judged")
     assert judged[-1]["data"] == {"seat": 0, "correct": True, "lockedOut": []}  # eligibility was reset (rules 6.1)

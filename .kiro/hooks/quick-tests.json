@@ -5,7 +5,7 @@
       "name": "Quick tests on rule, content and prompt changes",
       "trigger": "PostFileSave",
       "description": "When the pure rules, content code, the MC prompts or voice meter, the guards, or their tests are saved, run the quick test subset (a few seconds). The full fast suite takes about two minutes and is run on demand with scripts/test.sh.",
-      "matcher": "(^|/)server/khqs/(rules|content)/|(^|/)server/khqs/mc/(prompts|voice)\\.py$|(^|/)server/khqs/server/guards\\.py$|(^|/)tests/test_(rules|content|bank|en_bank|mc_prompts|guards)",
+      "matcher": "(^|/)server/khqs/(rules|content)/|(^|/)server/khqs/mc/(prompts|voice)\\.py$|(^|/)server/khqs/server/guards\\.py$|(^|/)tests/test_(rules|content|bank|en_bank|mc_prompts|guards|hint_rules)",
       "action": {
         "type": "command",
         "command": "scripts/test_quick.sh",

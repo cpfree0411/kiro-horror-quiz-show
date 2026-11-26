@@ -9,7 +9,7 @@ Kiro did not make any of these. They came in the handoff package or were added b
 - **The stage**: `stage/` (page, scripts, styles), its art plates, animation, transitions, opening, lobby and finale. Made by the project owner with other AI tools: Claude Code for the stage code, ChatGPT image editing for the art plates, Gemini for some music, Pixabay for the sound effects (`docs/HANDOFF.md` section 1).
 - **Sound effects and music cues** under `stage/`.
 - **The wire protocol** `khqs.stage/1`: `interface/` (spec, JSON Schema, scenarios, validator).
-- **The question content.** The English bank `banks/en-bank.json` and `tests/test_en_bank.py` (commit `c9aaa01`, phase P4) were written by another agent, after Kiro's P3, with Claude Code. Kiro was told not to edit them in P6 and did not.
+- **The question content.** The English bank `banks/en-bank.json` and `tests/test_en_bank.py` (commit `c9aaa01`, phase P4) were written by another agent, after Kiro's P3, with Claude Code. Kiro was told not to edit them in P6 and did not. In P7 the owner told Kiro to add exactly three `composer` values to `banks/en-bank.json`; that is the only change Kiro made to the file (three added lines, `git diff c9aaa01 -- banks/en-bank.json`), and the question content is untouched.
 - **Five of the six steering files**: `product.md`, `stage-contract.md`, `language-and-voice.md`, `secrecy-and-safety.md`, `structure.md` came in the handoff. Kiro edited `product.md` and `language-and-voice.md` in P3 for the English-only scope change.
 
 `MANIFEST.sha256` pins every frozen file. Kiro copied those files in P0 and has not edited them since; this is checked by `scripts/check_manifest.sh` (see "Hooks").
@@ -26,6 +26,7 @@ Everything under `server/`, `tests/`, `scripts/`, `docs/` other than `HANDOFF.md
 | P3 | `f2e323a` | Gemini Live MC, browser audio host, bank format and loader, English-only scope, collapsible pad |
 | P4 | `c9aaa01` | Not Kiro's: English question bank and its tests |
 | P6 | `a11d210` | Public demo mode, soak and leak fixes, hooks, docs |
+| P7 | P7COMMIT | Spoken hints on request in the music question (consent, `composer` in the bank format), worst-case timing script |
 
 P5 (packaging the submission) is not done.
 
@@ -50,6 +51,7 @@ Each phase started with a spec before code: requirements, design, tasks. At the 
 | P3 | `.kiro/specs/p3-live-mc/` | requirements, design, tasks, verification |
 | P4 | none | the other agent wrote no spec |
 | P6 | `.kiro/specs/p6-hardening/` | requirements, design, tasks, verification |
+| P7 | `.kiro/specs/p7-music-hints/` | requirements, design, tasks, verification |
 
 The owner reviewed and accepted each phase (P0 to P3) before the next began. Several of the owner's answers shaped the specs: competition ranking, first submission final with a select-then-LOCK IN phone UI, join order seats 1, 0, 2, the interface table as the truth for gate timeouts, and the English-only scope.
 
@@ -64,6 +66,7 @@ Fast test counts at the end of each phase (`scripts/test.sh`, pytest). Slow test
 | P2 | 239 | 8 | Real sockets, phone and stage pages in Chromium, port split |
 | P3 | 319 | 10 | Fake Live transport in tests; browser audio host test |
 | P6 | 392 | 11 | Includes `tests/e2e/test_public_browser.py` |
+| P7 | 542 | 12 | Includes `tests/e2e/test_music_hint_browser.py` (HINT button and AGREE / NO on real phone pages, mock MC) |
 
 Where verification found real problems:
 
@@ -71,10 +74,11 @@ Where verification found real problems:
 - P2: the on-screen pad covered the NEW SHOW button. Found in a screenshot from the browser acceptance run. Fixed with a collapsible pad.
 - P3: the first real Gemini run showed a bug that the fake transport had hidden. A buzz that cut a reading in flight left the microphone closed (drain and listen logic). Fixed, with a test that fails without the fix (`tests/server/test_live_mc.py`).
 - P6: the soak run found three leaks, listed below.
+- P7: the browser test for the HINT button failed four times before it passed, each time because of the test and not the engine: an assertion that looked at the last two judged answers of the whole game instead of the music question, a plan that assumed one fixed music track although the seed and the number of joins pick it (found by dumping every phone action to a file), and an assertion on a screen that lasts less than one poll. A driver race (a stale phone view letting the answer branch fire right after the HINT tap) was fixed on suspicion while debugging and is not shown to have mattered. The unit run found one engine bug: a bare "don't" was a refusal phrase, which made "I don't know" a NO (`rules/hints.py`, tests in `tests/test_hint_rules.py`), and two smaller view and test mistakes.
 
 ### Validation sub-agent
 
-The `validation` sub-agent was used once, at the end of P2, with the verdict PASS. It noted that "credential" in the join rule is read as the per-tab client id. It was not used in P3 or P6.
+The `validation` sub-agent was used once, at the end of P2, with the verdict PASS. It noted that "credential" in the join rule is read as the per-tab client id. It was not used in P3, P6 or P7.
 
 ### Web search
 
@@ -82,7 +86,7 @@ Web search was used once, in P3, to check the current Gemini Live model name. Th
 
 ### Real Gemini sessions
 
-Four real Live sessions, all in P3 (one speech fixture, three smoke games), logged outside the repo in `/srv/workdata/build-cache/khqs-evidence/p3/`. Tests never call the live API. P6 opened no real session.
+Four real Live sessions, all in P3 (one speech fixture, three smoke games), logged outside the repo in `/srv/workdata/build-cache/khqs-evidence/p3/`. Tests never call the live API. P6 and P7 opened no real session.
 
 ## P6 in detail
 
@@ -104,15 +108,22 @@ Four tests in `tests/server/test_leaks.py` cover them; three were run against th
 
 Files: `.kiro/hooks/frozen-boundary.json`, `bank-check.json`, `quick-tests.json`, `stop-gate.json`. They call `scripts/check_manifest.sh` (`sha256sum -c MANIFEST.sha256` plus a check for extra files), `scripts/check_banks.sh` (`scripts/check_bank.sh` on every bank), `scripts/test_quick.sh` (about 10 s) and `scripts/check_all_quick.sh` (all three, run when the agent ends a turn).
 
-- The full fast suite takes about 2.5 minutes, so it is not a hook. Run `scripts/test.sh` on demand.
+- The full fast suite takes about 3.5 minutes, so it is not a hook. Run `scripts/test.sh` on demand.
 - The hooks were created with Kiro's `createHook` tool. The tool wrote them to the workspace root (`/srv/workdata/projects/.kiro/hooks/`), so they were moved into this repo's `.kiro/hooks/`.
 - `tests/test_kiro_hooks.py` (18 tests) checks the hook files: format, that each matcher hits real paths and misses others, that the commands exist and run, and that a changed file in a temporary copy of `stage/` makes the manifest script fail. It works on temp copies, so the real `stage/` is never touched.
-- **Firing check, first attempt: no hook was seen to fire.** After P6 was accepted, a one-character edit to `tests/test_guards.py` (a file the `quick-tests` hook matches) was saved through the agent's file-edit tool in the same session that had created the hooks. No hook output came back and no `test_quick.sh` process ran. The edit was reverted (`git status` clean). Kiro loads hooks at session start, so this session, which began before the hooks existed, is the expected case for "not loaded", and the result says nothing about a fresh session.
+- **Firing check, first attempt: no hook was seen to fire.** After P6 was accepted, a one-character edit to `tests/test_guards.py` (a file the `quick-tests` hook matches) was saved through the agent's file-edit tool in the same session that had created the hooks. No hook output came back and no `test_quick.sh` process ran. The edit was reverted (`git status` clean). A second attempt in P7, a docstring edit to `server/khqs/rules/hints.py` (also matched by `quick-tests`) through the file-edit tool, gave the same result in the same session. Kiro loads hooks at session start, so this session, which began before the hooks existed, is the expected case for "not loaded", and the result says nothing about a fresh session.
 - **Still not verified:** that a hook fires in a session that started after the hook files were committed. The format, the matchers and the scripts are verified, by hand and by `tests/test_kiro_hooks.py`. The check is to be repeated in the next session and this paragraph updated with the result.
+
+## P7 in detail
+
+Spec first: `.kiro/specs/p7-music-hints/requirements.md` (taken from the owner's prompt, with numbered requirements), `design.md`, `tasks.md`, then `verification.md` with a requirement to test table and the worst-case timing numbers. The new code is `server/khqs/rules/hints.py` (phrase lists), the engine flow (`hint_turn` in `server/khqs/engine/flow.py`), five MC cues and the `report_vote` tool, the phone buttons, and a required `composer` in `khqs.bank/1`. The stage was not touched; the frozen stage shows only `phase.changed buzzer.hint` ("HINT!") and the MC captions for a request, and the notes on what a visible cue would need are in the P7 report.
+
+Verified with the fake Live transport and scripted players, never with the real API: unit tests for each rule, `assert_no_leaks` over 16 full games that use hints (the scanner was extended and has a test that it catches an early clue), and one slow browser game with the HINT button. `scripts/music_timing.py` measures the worst-case length on a fake clock.
 
 ## Limits of this account
 
 - The stage, art, sound and question content were made outside Kiro.
 - No real Cloudflare tunnel was set up. Public mode was tested against local requests with forwarding headers and a fake public host.
 - Human voice with room echo has not been tested. Real Gemini sessions used a synthetic voice through a fake microphone.
-- The hooks have not been seen firing inside Kiro (one attempt in the session that created them, no firing; not yet repeated in a fresh session).
+- The hooks have not been seen firing inside Kiro (two attempts, both in the session that created them, no firing; not yet repeated in a fresh session).
+- The spoken hint request and the spoken yes or no have not been heard by a human or by the real Live model.

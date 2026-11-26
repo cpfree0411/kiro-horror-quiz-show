@@ -105,7 +105,7 @@ class RigHost(GameHost):
     def _new_engine(self):
         cfg = EngineConfig(ox_answer_ms=400, betrayal_input_ms=300, prompt_failsafe_ms=3000, reading_failsafe_ms=3000,
                            buzzer_answer_ms=4000, buzzer_open_ms=1500, music_open_ms=300, media_interrupt_wait_ms=100,
-                           media_watchdog_extra_ms=100, final_bet_ms=300, final_answer_ms=300, gate_grace_ms=500,
+                           media_watchdog_extra_ms=100, hint_consent_ms=2500, final_bet_ms=300, final_answer_ms=300, gate_grace_ms=500,
                            gate_timeouts={k: 60 for k in EngineConfig().gate_timeouts})
         flags = self.mc.engine_flags()
         return Engine(self.bank, self.clock, random.Random(3), cfg, game_index=self.game_index, **flags)

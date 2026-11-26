@@ -21,7 +21,7 @@ OX_KEYS = {"id", "category", "text", "answer", "explanation"}
 BUZZER_KEYS = {"id", "category", "text", "answer", "aliases", "explanation"}
 FINAL_KEYS = {"id", "category", "text", "choices", "answer", "explanation"}
 SET_KEYS = {"id", "musicPosition", "ox", "buzzers", "final"}
-TRACK_KEYS = {"key", "assetId", "file", "durationSec", "category", "text", "answer", "aliases", "explanation", "clips", "clues", "credit"}
+TRACK_KEYS = {"key", "assetId", "file", "durationSec", "category", "text", "answer", "aliases", "explanation", "clips", "clues", "composer", "credit"}
 TRACK_REQUIRED = TRACK_KEYS - {"category", "text"}
 CREDIT_KEYS = {"title", "license", "author", "performer", "source"}
 TOP_KEYS = {"format", "sets", "tracks"}
@@ -130,7 +130,7 @@ def parse_bank(data, media_dir: Path) -> tuple[ContentBank | None, list[str]]:
         tracks.append(MusicTrack(
             key=_str(t, "key", w, out), asset_id=str(t.get("assetId", "")), bytes=size, duration_sec=float(dur),
             answer=_str(t, "answer", w, out), aliases=_strs(t, "aliases", w, out), explanation=_str(t, "explanation", w, out),
-            clips=tuple(clips), clues=_strs(t, "clues", w, out), credit=credit,
+            clips=tuple(clips), clues=_strs(t, "clues", w, out), composer=_str(t, "composer", w, out), credit=credit,
             category=t.get("category", "Midnight Concert"), text=t.get("text", "What's the title of this piece?"), file=file))
     hard = [e for e in out if ".file:" not in e]  # a missing media file does not stop the other checks
     return (ContentBank(tuple(sets), tuple(tracks)) if not hard else None), out
@@ -215,5 +215,6 @@ def bank_to_dict(bank: ContentBank) -> dict:
                             "answer": s.final.answer, "explanation": s.final.explanation}} for s in bank.sets],
         "tracks": [{"key": t.key, "assetId": t.asset_id, "file": t.file, "durationSec": t.duration_sec, "category": t.category,
                     "text": t.text, "answer": t.answer, "aliases": list(t.aliases), "explanation": t.explanation,
-                    "clips": [list(c) for c in t.clips], "clues": list(t.clues), "credit": credit(t.credit)} for t in bank.tracks],
+                    "clips": [list(c) for c in t.clips], "clues": list(t.clues), "composer": t.composer,
+                    "credit": credit(t.credit)} for t in bank.tracks],
     }

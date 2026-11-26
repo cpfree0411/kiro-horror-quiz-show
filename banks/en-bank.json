@@ -193,6 +193,7 @@
         "The fiddler tunes one string wrong on purpose, for extra spookiness.",
         "It's French, and a harp chimes twelve times for midnight at the start."
       ],
+      "composer": "Camille Saint-Saëns",
       "credit": {
         "title": "Danse macabre, Op. 40",
         "license": "Public domain (US): PD-US-record-expired",
@@ -234,6 +235,7 @@
         "It starts sneaky-quiet and keeps getting faster and louder.",
         "It's from a Norwegian play, and grumpy trolls are chasing someone."
       ],
+      "composer": "Edvard Grieg",
       "credit": {
         "title": "In the Hall of the Mountain King (Peer Gynt Suite No. 1, Op. 46)",
         "license": "Public domain (Musopen)",
@@ -276,6 +278,7 @@
         "It's played on one enormous instrument with lots of pipes.",
         "It's German and Baroque, and it opens with a dramatic twirl and a huge rumbling chord."
       ],
+      "composer": "Johann Sebastian Bach",
       "credit": {
         "title": "Toccata and Fugue in D minor, BWV 565",
         "license": "CC BY-SA 3.0",

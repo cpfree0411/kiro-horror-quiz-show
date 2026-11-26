@@ -39,7 +39,7 @@
       const m = JSON.parse(e.data);
       if (m.type === 'view') { banner(''); onView(m.view); }
       else if (m.type === 'result') { S.sending = false; if (!m.ok) { toast(({ not_now: 'Too late for that one.', busy: 'Someone else has the buzzer.', locked_out: 'You are locked out this round.',
-        already_answered: 'Already locked in.', bad_input: 'That did not look right.', disconnected: 'Reconnecting…' })[m.error] || 'That did not go through.'); S.pending = null; render(true); } }
+        already_answered: 'Already locked in.', bad_input: 'That did not look right.', disconnected: 'Reconnecting…', no_hints: 'No hints left for you.' })[m.error] || 'That did not go through.'); S.pending = null; render(true); } }
       else if (m.type === 'error' && m.code === 'bad_cred') { try { store.removeItem(key); } catch (x) { /* ignore */ } fatal('THIS TICKET IS NO LONGER VALID', 'SCAN THE QR CODE AGAIN'); }
       else if (m.type === 'gone') { try { store.removeItem(key); } catch (x) { /* ignore */ } fatal('A NEW SHOW IS STARTING', 'GET A NEW TICKET'); }
     };
@@ -56,7 +56,7 @@
     S.view = v; S.at = Date.now(); S.offset = v.game.serverTime - Date.now();
     $('pc-name').textContent = v.you.name; $('pc-score').textContent = v.you.score; $('pc-rank').textContent = 'RANK ' + v.you.rank;
     if (padSeat !== null && window.parent !== window) {   // a screen pad tells the stage page when it has something to do
-      const quiet = ['waiting', 'locked', 'ox_locked', 'bet_locked', 'final_locked', 'done', 'invalid', 'connecting'];
+      const quiet = ['waiting', 'locked', 'hint_wait', 'hint_voted', 'ox_locked', 'bet_locked', 'final_locked', 'done', 'invalid', 'connecting'];
       if (S.lastScreen !== v.screen) window.parent.postMessage({ khqs: 'pad', seat: +padSeat, screen: v.screen, needs: !quiet.includes(v.screen) }, location.origin);
     }
     S.lastScreen = v.screen;
@@ -69,6 +69,8 @@
     b.disabled = !enabled;
     return b;
   };
+
+  const hintBtn = own => own.canHint && el('button', { class: 'hint', id: 'hint', type: 'button', text: 'HINT?', onclick: () => send({ type: 'hint' }) });
 
   function render() {
     const v = S.view, main = $('pc-main');
@@ -92,16 +94,30 @@
         break;
       case 'answer_voice':
         main.append(el('p', { class: 'big', text: 'YOU HAVE THE BUZZER!' }), el('p', { class: 'sub', text: 'Say your answer out loud.' }),
-          el('button', { id: 'type-instead', type: 'button', text: 'TYPE IT INSTEAD', onclick: () => send({ type: 'choose_typing' }) }));
+          el('button', { id: 'type-instead', type: 'button', text: 'TYPE IT INSTEAD', onclick: () => send({ type: 'choose_typing' }) }), hintBtn(own));
         break;
       case 'answer_text': {
         const inp = el('input', { type: 'text', id: 'answer-text', maxlength: '60', autocomplete: 'off', autocapitalize: 'off', placeholder: 'Type your answer' });
         const go = () => { const t = inp.value.trim(); if (t) send({ type: 'text_answer', text: t }); };
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-        main.append(el('p', { class: 'big', text: 'YOU HAVE THE BUZZER!' }), inp, el('button', { class: 'lock', id: 'send-answer', type: 'button', text: 'SEND ANSWER', onclick: go }));
+        main.append(el('p', { class: 'big', text: 'YOU HAVE THE BUZZER!' }), inp, el('button', { class: 'lock', id: 'send-answer', type: 'button', text: 'SEND ANSWER', onclick: go }), hintBtn(own));
         setTimeout(() => inp.focus(), 50);
         break;
       }
+      case 'hint_wait':
+        main.append(el('p', { class: 'big', text: 'HINT REQUESTED' }), el('p', { class: 'sub', text: own.hint && own.hint.asking ? 'The others are deciding…' : 'Listen to the hint, then answer.' }));
+        break;
+      case 'hint_vote': {
+        const h = own.hint || {};
+        main.append(el('p', { class: 'big', text: (h.requester || 'A PLAYER').toUpperCase() + ' WANTS A HINT' }), el('p', { class: 'sub', text: 'Do you agree? Silence counts as yes.' }),
+          el('div', { class: 'row' }, [['yes', 'AGREE'], ['no', 'NO']].map(([id, label]) => el('button', { class: S.pending === id ? 'sel' : '', 'data-vote': id, type: 'button', text: label,
+            onclick: () => { S.pending = id; render(); } }))),
+          lockBtn('LOCK IN', !!S.pending, () => S.pending && send({ type: 'hint_vote', agree: S.pending === 'yes' })));
+        break;
+      }
+      case 'hint_voted':
+        main.append(el('p', { class: 'big', text: 'VOTE LOCKED ✓' }), el('p', { class: 'sub', text: 'Waiting for the others…' }));
+        break;
       case 'betrayal_reason': {
         const b = own.betrayal;
         main.append(el('p', { class: 'big', text: 'WHY DID YOU PICK ' + b.from + '?' }),

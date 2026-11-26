@@ -17,6 +17,11 @@ def _names(names):
     return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
 
 
+def _grant_line(f: dict) -> str:
+    opener = {"solo": "Nobody to ask, so granted! ", "agreed": "The others agree! ", "silence": "Silence means yes! "}[f["how"]]
+    return opener + (f"It's by {f['text']}!" if f["kind"] == "composer" else f"{f['text']}")
+
+
 def line_for(cue: str, f: dict) -> str:
     c = f.get("choices")
     table = {
@@ -25,7 +30,11 @@ def line_for(cue: str, f: dict) -> str:
         "read_ox": lambda: f"Question {f['number']}. {f['text']} True or false?",
         "read_buzzer": lambda: f"Question {f['number']}. Listen carefully, and buzz in whenever you know it!",
         "intro_music": lambda: "Let's have a listen.",
-        "hint_line": lambda: f"Hint {f['level']}. Buzzers open again. {f['clue']} Let's listen again.",
+        "longer_listen": lambda: "Buzzers open again. Here comes a longer listen!",
+        "hint_ask": lambda: f"Ooh, {f['name']} wants a hint! Do the others agree?",
+        "hint_grant": lambda: _grant_line(f),
+        "hint_refused": lambda: "Denied! You're on your own.",
+        "hint_none": lambda: "No hints left!",
         "suspense": lambda: "And the answer is...",
         "ask_reason": lambda: f"{f['name']}, why did you pick {f['choice']}?",
         "offer_switch": lambda: f"{f['name']}, would you like to switch from {f['choice']}?",

@@ -57,6 +57,12 @@ class MusicTrack:
     category: str = "Midnight Concert"
     text: str = DEFAULT_MUSIC_TEXT
     file: str = ""  # file name under media/ (server side only; never on the wire)
+    composer: str = ""  # private until the MC grants the third spoken hint (required in a bank file)
+
+    @property
+    def hints(self) -> tuple[tuple[str, str], ...]:
+        """The spoken hints in the order they are granted: clue 1, clue 2, the composer. Private until granted."""
+        return (*(("clue", c) for c in self.clues), ("composer", self.composer))
 
 
 @dataclass(frozen=True)
@@ -235,17 +241,21 @@ def validate_bank(bank: ContentBank) -> list[str]:
             p.append(f"{w}: needs {HINT_LEVELS - 1} clues (levels 1..2)")
         if not t.answer.strip() or not t.explanation.strip():
             p.append(f"{w}: answer and explanation required")
+        if not t.composer.strip():
+            p.append(f"{w}: composer required")
         if not t.credit.title or not t.credit.license:
             p.append(f"{w}: credit needs title and license")
         if not t.category or len(t.category) > MAX_CATEGORY:
             p.append(f"{w}: category length 1..{MAX_CATEGORY}")
         shown = normalize(f"{t.category} {t.text}")
-        for key in (t.answer, *t.aliases):
+        for key in (t.answer, *t.aliases, t.composer):
             k = normalize(key)
             if len(k) >= 3 and k in shown:
-                p.append(f"{w}: the title or an alias ({key!r}) appears in the category or text")
+                p.append(f"{w}: the title, an alias or the composer ({key!r}) appears in the category or text")
         norm_title = t.answer.casefold()
         for c in t.clues:
             if norm_title and norm_title in c.casefold():
                 p.append(f"{w}: a clue contains the title")
+            if t.composer.strip() and t.composer.casefold() in c.casefold():
+                p.append(f"{w}: a clue contains the composer")
     return p

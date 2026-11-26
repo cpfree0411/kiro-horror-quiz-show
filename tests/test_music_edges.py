@@ -93,8 +93,9 @@ def test_nobody_buzzes_goes_through_both_hints_then_suspense_and_reveal_with_cre
     plays = [m["data"] for m in sim.of("av.play")]
     assert [(p["level"], p["startSec"], p["endSec"]) for p in plays] == [(0, 12.0, 20.0), (1, 0.0, 16.0), (2, 0.0, 30.0)]
     assert [m["data"]["level"] for m in sim.of("av.hint")] == [1, 2]
-    clues = [e.facts["clue"] for _, e, _ in sim.mc_fx if isinstance(e, McSay) and e.cue == "hint_line"]
-    assert clues == ["It is played by a full orchestra with a solo fiddle.", "A clock strikes twelve at the start."]
+    lines = [e.facts for _, e, _ in sim.mc_fx if isinstance(e, McSay) and e.cue == "longer_listen"]
+    assert lines == [{"level": 1, "max_level": 2}, {"level": 2, "max_level": 2}]  # one short line per step, never a clue
+    assert not [e for _, e, _ in sim.mc_fx if isinstance(e, McSay) and e.cue.startswith("hint_")]
     ph = phases(sim)
     k = len(ph) - 1 - ph[::-1].index("buzzer.hint")
     assert "buzzer.suspense" in ph[k:] and ph.index("buzzer.suspense", k) > k

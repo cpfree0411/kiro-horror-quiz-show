@@ -10,7 +10,7 @@ from khqs.mc.voice import BYTES_PER_MS, VoiceMeter, rms
 
 SAMPLE = {"names": ["Mina", "Ray"], "mode": "competitive", "act": 1, "title": "Act 1 · O/X", "number": 4, "category": "Midnight Concert",
           "text": "Why is the sky blue today", "resume": False, "level": 1, "max_level": 2, "clue": "A fiddle plays tricks.", "kind": "ox",
-          "name": "Mina", "choice": "O", "changed": True, "from": "O", "to": "X", "reason": "I KNEW IT", "answer": "O",
+          "name": "Mina", "how": "agreed", "why": "none_left", "choice": "O", "changed": True, "from": "O", "to": "X", "reason": "I KNEW IT", "answer": "O",
           "explanation": "Because reasons.", "results": [{"name": "Mina", "correct": True}], "correct": False, "attempt": 2,
           "scores": [{"name": "Mina", "score": 20}], "choices": ["alpha", "beta", "gamma", "delta"], "winners": ["Mina"], "tie": False,
           "standings": [{"name": "Mina", "score": 20, "rank": 1}], "mode_": "x"}
@@ -36,9 +36,10 @@ def test_facts_become_safe_single_line_data():
     assert len(prompts.clean("x" * 1000)) == prompts.MAX_FACT
 
 
-def test_hint_turn_is_the_only_one_with_a_clue_and_says_not_to_name_the_piece():
-    t = prompts.turn_for("hint_line", {"level": 1, "max_level": 2, "clue": "A fiddle plays tricks."})
+def test_only_the_granted_hint_turn_carries_a_clue_and_says_not_to_name_the_piece():
+    t = prompts.turn_for("hint_grant", {"name": "Mina", "how": "agreed", "kind": "clue", "text": "A fiddle plays tricks.", "number": 1})
     assert "A fiddle plays tricks." in t and "without naming the piece" in t
+    assert "clue" not in prompts.turn_for("longer_listen", {"level": 1, "max_level": 2}).replace("Give no clue", "")
     assert "answer" not in prompts.turn_for("suspense", {"kind": "av"}).replace("the answer", "")  # suspense only builds tension
 
 
@@ -54,6 +55,7 @@ def test_listen_context_names_the_tool():
     assert "report_answer" in prompts.listen_context("answer", "Mina", 1)
     assert "report_reason" in prompts.listen_context("reason", "Mina", 1)
     assert "report_decision" in prompts.listen_context("decision", "Mina", 1)
+    assert "report_vote" in prompts.listen_context("consent", "Mina", 1)
 
 
 def pcm(ms, amp):
