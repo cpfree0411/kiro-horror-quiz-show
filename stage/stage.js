@@ -910,7 +910,10 @@
       light.chase = 0;
       setDark(0, null, fast);
       const anyRight = d.results.some(r => r.correct), anyWrong = d.results.some(r => !r.correct);
-      if (!fast) { if (act === 1 || (act === 2 && !anyRight)) Sound.cue('crash'); light.flash = 1; }   // Act 2's answer reveal ends with the 'ding-dong' already played at judging (no sound). Act 3's reveal goes straight from the drumroll to the correct sound, no cymbal (user 2026-11-25: too many cymbals)
+      // Act 1 (user 2026-11-27: the roll then the answer sounded flat): the roll ends on the comedy 'ba-dum-tss' (rollComedy, 'tss' at 0.25 s) instead of the cymbal,
+      // and the answer appears on the 'tss': roll → ba-dum-tss → answer, flash and verdict sounds
+      if (act === 1 && !fast) { Sound.cue('rollComedy'); await wait(300); }
+      if (!fast) { if (act === 2 && !anyRight) Sound.cue('crash'); light.flash = 1; }   // Act 2's answer reveal ends with the 'ding-dong' already played at judging (no sound). Act 3's reveal goes straight from the drumroll to the correct sound, no cymbal (user 2026-11-25: too many cymbals)
       markAnswer(d.answer, d, fast);
       if (act === 2) ghostPose('present', 3200); // the moment it holds out the answer bubble
       else ghostPose(anyRight ? (anyWrong ? 'wink' : 'happy') : 'sad', 2400);
