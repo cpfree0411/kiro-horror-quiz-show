@@ -910,16 +910,15 @@
       light.chase = 0;
       setDark(0, null, fast);
       const anyRight = d.results.some(r => r.correct), anyWrong = d.results.some(r => !r.correct);
-      // Act 1 (user 2026-11-27: the roll then the answer sounded flat): the roll ends on the comedy 'ba-dum-tss' (rollComedy, 'tss' at 0.25 s) instead of the cymbal,
-      // and the answer appears on the 'tss': roll → ba-dum-tss → answer, flash and verdict sounds
-      if (act === 1 && !fast) { Sound.cue('rollComedy'); await wait(300); }
-      if (!fast) { if (act === 2 && !anyRight) Sound.cue('crash'); light.flash = 1; }   // Act 2's answer reveal ends with the 'ding-dong' already played at judging (no sound). Act 3's reveal goes straight from the drumroll to the correct sound, no cymbal (user 2026-11-25: too many cymbals)
+      // Act 2 (user 2026-11-27: the MC's answer explanation had only a drumroll): the roll ends on the comedy 'ba-dum-tss' (rollComedy) as the
+      // 'THE ANSWER IS…' bubble appears, whether or not someone was right. Act 1 keeps its cymbal; act 3 has none (2026-11-25)
+      if (!fast) { if (act === 1) Sound.cue('crash'); else if (act === 2) Sound.cue('rollComedy'); light.flash = 1; }
       markAnswer(d.answer, d, fast);
       if (act === 2) ghostPose('present', 3200); // the moment it holds out the answer bubble
       else ghostPose(anyRight ? (anyWrong ? 'wink' : 'happy') : 'sad', 2400);
       // In act 2 the expression was already set at judging. Only acts 1 and 3 react here
       if (act !== 2) for (const r of d.results) { const v = viewOf(r.seat); if (v) { setPose(v, r.correct ? 'cheer' : 'sad'); v.hop = clock; } if (act === 1) voterPose(r.seat, r.correct ? 'cheer' : 'sad', r.correct && !fast); }
-      if (!fast && act === 2) { if (!anyRight) { Sound.cue('sad'); Sound.cue('boo'); shock(1.6); } }   // act 2: wah-wah only when nobody got it
+      if (!fast && act === 2) { if (!anyRight) { setTimeout(() => { Sound.cue('sad'); Sound.cue('boo'); }, 380); shock(1.6); } }   // act 2: wah-wah only when nobody got it, after the 'tss'
       else if (!fast) {
         // Act 1 OX (user decision 2026-11-17): if anyone is right, 'ding-dang-dong' (correct). Wah-wah only when all are wrong or the betrayal-chance player is wrong
         const btrWrong = act === 1 && A1 && A1.btrSeat != null && d.results.some(r => r.seat === A1.btrSeat && !r.correct);
