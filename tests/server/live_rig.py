@@ -31,6 +31,13 @@ class FakeTransport(QueueTransport):
         self.hold_cue = None  # hold (never complete) only turns for this cue
         self.hold = False  # when True, turns produce audio but never complete (a long reading)
         self.tool_script = None  # callable(listen purpose) -> list[ToolCall], consulted on activity end
+        # How the real Live API behaves around a tool call (seen in the owner's play test): the model's turn that made the
+        # call stays open until the tool response arrives, then it completes (empty) a few ms later. A client turn sent
+        # before that is answered only after it. `tool_turn_ms=None` models an API that sends no such completion.
+        self.tool_turn_ms: float | None = 30
+        self._tool_open = False
+        self._deferred: list[str] = []
+        self.empty_cues: dict[str, int] = {}  # cue -> how many turns for it come back as a bare turn_complete
 
     async def connect(self, system_prompt, resume):
         if self.fail_connect:
@@ -41,6 +48,24 @@ class FakeTransport(QueueTransport):
     async def send_turn(self, text):
         self.turns.append(text)
         self.positions.append(self.sseq_now())
+        if self._tool_open:  # the open tool turn finishes first; this turn is answered after it
+            self._deferred.append(text)
+            return
+        self._respond(text)
+
+    def _finish_tool_turn(self):
+        self._tool_open = False
+        self.push(TurnComplete())  # the (empty) rest of the turn that made the tool call
+        for text in self._deferred:
+            self._respond(text)
+        self._deferred.clear()
+
+    def _respond(self, text):
+        cue = text.split("]", 1)[0].removeprefix("[CUE ") if text.startswith("[CUE ") else ""
+        if self.empty_cues.get(cue, 0) > 0:
+            self.empty_cues[cue] -= 1
+            self.push(TurnComplete())  # a turn with no audio at all
+            return
         spoken = "Fine words."
         self.push(AudioOut(tone(50, 3000, 24000)))
         self.push(OutText(spoken))
@@ -62,6 +87,9 @@ class FakeTransport(QueueTransport):
 
     async def tool_result(self, call_id, name):
         self.tool_results.append((call_id, name, {"received": True}))
+        if self.tool_turn_ms is not None:
+            self._tool_open = True
+            asyncio.get_running_loop().call_later(self.tool_turn_ms / 1000, self._finish_tool_turn)
 
     async def close(self):
         self.closed = True

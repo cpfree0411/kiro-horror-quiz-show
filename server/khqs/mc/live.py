@@ -29,6 +29,9 @@ TOOL_WAIT_S = 6.0
 DRAIN_S, DRAIN_LATE_S = 1.5, 0.3
 HEARD_MAX = 200
 MAX_REARMS = 4
+TOOL_TURN_S = 1.5  # how long a new cue waits for the end of the model's own turn that made a tool call
+BYTES_PER_MS_OUT = 48  # 24 kHz, 16-bit, mono
+SPOKEN_CUES = frozenset({"hint_ask", "hint_grant", "hint_refused", "hint_none"})  # must really be heard; an empty turn is retried once
 
 
 class AudioPort(Protocol):
@@ -48,6 +51,8 @@ class _Say:
     text: str = ""
     sent_at: float = 0.0
     uid: int = 0
+    audio_bytes: int = 0  # what the model really produced for this turn
+    tries: int = 0  # times this turn was sent after the first
 
 
 @dataclass
@@ -87,6 +92,11 @@ class LiveMc:
         self.started_at = self.last_activity = self.last_progress = 0.0
         self.sent_turns: list[str] = []  # everything sent as text (for tests and audit; never contains the key)
         self.sent_sseq: list[int] = []  # the stream position when each turn was sent
+        # The model's own turn that made a tool call stays open until the tool response, then ends with a turn_complete of
+        # its own. A cue sent in that gap would take that turn_complete for its own end (and never be heard).
+        self.tool_open = False
+        self.tool_open_at = 0.0
+        self._tool_event: asyncio.Event | None = None
 
     # ------------------------------------------------------------------ status
     def status(self) -> dict:
@@ -158,6 +168,7 @@ class LiveMc:
         self.queue.clear()
         self.current = None
         self.awaiting.clear()
+        self.tool_open = False
         self._drop_listen()
         self.port.flush()
         self.port.mic(False)
@@ -200,6 +211,9 @@ class LiveMc:
                 if self.draining:
                     await self._wait_drain()
                     continue
+                if self.tool_open:
+                    await self._wait_tool_turn()
+                    continue
                 say = self.queue.popleft()
                 self.current = say
                 text = prompts.turn_for(say.cue, say.facts)
@@ -208,6 +222,7 @@ class LiveMc:
                 say.sent_at = self.last_progress = self.now()
                 self.sent_turns.append(text)
                 self.sent_sseq.append(self.host.engine._sseq)
+                log.info("mc cue sent cue=%s try=%d", say.cue, say.tries + 1)
                 try:
                     await self.transport.send_turn(text)
                 except LiveError as e:
@@ -236,6 +251,18 @@ class LiveMc:
         if self._drain_event:
             self._drain_event.set()
         self._spawn(self._pump_listen())  # a listen that arrived while we were draining can open the mic now
+
+    async def _wait_tool_turn(self) -> None:
+        """Hold the next cue until the model's tool-call turn has ended (or it clearly will not)."""
+        left = TOOL_TURN_S - (self.now() - self.tool_open_at)
+        if left > 0:
+            self._tool_event = asyncio.Event()
+            try:
+                await asyncio.wait_for(self._tool_event.wait(), left)
+            except asyncio.TimeoutError:
+                log.info("mc tool turn did not end within %.1f s, going on", TOOL_TURN_S)
+        self.tool_open = False
+        self._tool_event = None
 
     async def _wait_drain(self) -> None:
         if self._drain_event:
@@ -271,6 +298,7 @@ class LiveMc:
         if isinstance(ev, AudioOut):
             if self.current and not self.draining:
                 self.last_progress = self.now()
+                self.current.audio_bytes += len(ev.pcm)
                 self.port.audio(self.current.token, ev.pcm)
         elif isinstance(ev, OutText):
             if self.current and not self.draining:
@@ -284,6 +312,13 @@ class LiveMc:
         elif isinstance(ev, TurnComplete):
             if self.draining:
                 self._finish_drain()
+                return
+            if self.current is None:
+                log.info("mc turn_complete outside a cue tool_turn=%s", self.tool_open)
+                if self.tool_open:  # the end of the turn that made the tool call
+                    self.tool_open = False
+                    if self._tool_event:
+                        self._tool_event.set()
                 return
             await self._complete()
         elif isinstance(ev, ToolCall):
@@ -299,6 +334,15 @@ class LiveMc:
             return  # a late turn_complete after interrupted: normal
         self.current = None
         self.last_progress = self.now()
+        log.info("mc cue done cue=%s audio_ms=%d", say.cue, say.audio_bytes // BYTES_PER_MS_OUT)
+        if say.cue in SPOKEN_CUES and say.audio_bytes == 0:  # the model ended its turn without a sound
+            if say.tries == 0:
+                log.warning("mc empty turn cue=%s, trying once more", say.cue)
+                say.tries, say.text = 1, ""
+                self.queue.appendleft(say)
+                self._spawn(self._advance())
+                return
+            log.warning("mc empty turn again cue=%s, giving up on this line", say.cue)
         self._caption(say, True)
         self.port.end(say.token)
         self.awaiting[say.token] = self.now()
@@ -396,11 +440,13 @@ class LiveMc:
 
     async def _on_tool(self, call: ToolCall) -> None:
         l = self.listen
+        log.info("mc tool call name=%s", call.name)  # the name only, never the arguments
         try:
             await self.transport.tool_result(call.id, call.name)  # silent receipt: {"received": true} and nothing else
         except LiveError as e:
             await self.safe_stop(f"send failed: {e}")
             return
+        self.tool_open, self.tool_open_at = True, self.now()
         want = {"answer": "report_answer", "reason": "report_reason", "decision": "report_decision", "consent": "report_vote"}
         if l is None or want.get(l.purpose) != call.name:
             return  # stale or unexpected: ignored

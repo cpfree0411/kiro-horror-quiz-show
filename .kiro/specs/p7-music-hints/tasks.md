@@ -9,3 +9,4 @@
 - [x] T7 One slow browser game with the HINT button (mock MC)
 - [x] T8 Worst-case timing script and numbers
 - [x] T9 README, verification, full runs, commit, push, report
+- [x] T10 Fix after the owner's play test: cues after a tool call, empty-turn retry, log lines, live_smoke hint (real check pending)

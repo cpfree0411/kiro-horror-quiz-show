@@ -118,7 +118,11 @@ Files: `.kiro/hooks/frozen-boundary.json`, `bank-check.json`, `quick-tests.json`
 
 Spec first: `.kiro/specs/p7-music-hints/requirements.md` (taken from the owner's prompt, with numbered requirements), `design.md`, `tasks.md`, then `verification.md` with a requirement to test table and the worst-case timing numbers. The new code is `server/khqs/rules/hints.py` (phrase lists), the engine flow (`hint_turn` in `server/khqs/engine/flow.py`), five MC cues and the `report_vote` tool, the phone buttons, and a required `composer` in `khqs.bank/1`. The stage was not touched; the frozen stage shows only `phase.changed buzzer.hint` ("HINT!") and the MC captions for a request, and the notes on what a visible cue would need are in the P7 report.
 
-Verified with the fake Live transport and scripted players, never with the real API: unit tests for each rule, `assert_no_leaks` over 16 full games that use hints (the scanner was extended and has a test that it catches an early clue), and one slow browser game with the HINT button. `scripts/music_timing.py` measures the worst-case length on a fake clock.
+Verified with the fake Live transport and scripted players (the real model has so far only been used by the owner's own play test): unit tests for each rule, `assert_no_leaks` over 16 full games that use hints (the scanner was extended and has a test that it catches an early clue), and one slow browser game with the HINT button. `scripts/music_timing.py` measures the worst-case length on a fake clock.
+
+### P7 fix after the owner's play test
+
+The owner's live-voice test found that the MC never spoke the hint. All P7 tests had passed because the fake Live transport answered a turn at once and never modelled the open turn around a tool call. The fix made the fake behave like the real API, added a regression test that fails on `9b10881`, and changed `server/khqs/mc/live.py` (details in `.kiro/specs/p7-music-hints/verification.md`). A scripted check against the real API (`scripts/live_smoke.py hint`) used its one session and stopped on a mistake in the script itself; it has not been repeated.
 
 ## Limits of this account
 

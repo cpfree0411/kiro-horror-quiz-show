@@ -553,3 +553,110 @@ def test_a_consent_report_for_a_window_that_is_over_is_ignored():
         assert rig.eng.round.consent is None and rig.eng.round.hint_asked == set() and rig.mc.listen.purpose == "answer"
         await rig.down()
     run(main())
+
+
+# ---------------------------------------------------------------- P7 fix: the MC never spoke the hint (owner's live play test)
+def _cue_token(rig, cue):
+    return next((e.token for _, e, _ in rig.host.recorder.mc_fx if isinstance(e, McSay) and e.cue == cue), None)
+
+
+def test_a_cue_sent_right_after_a_tool_call_is_not_ended_by_the_tool_turns_own_turn_complete():
+    """Found in the owner's play test: report_answer, then hint_grant 44 ms later. The model's turn that made the call completes
+    just after the tool response; that turn_complete was taken for the end of the new cue, which therefore never played."""
+    async def main():
+        rig = await Rig().up()
+        track = await to_music_hold(rig, names=("Mina",))
+        await speak(rig, "report_answer", {"heard": "It's too hard, give me a hint!", "recognition": "clear"}, "answer")
+        await rig.until(lambda: any(t.startswith("[CUE hint_grant]") for t in rig.t.turns), timeout=10)
+        tok = _cue_token(rig, "hint_grant")
+        assert tok is not None
+        await rig.until(lambda: rig.eng.phase == "buzzer.answering" and rig.mc.listen is not None, timeout=10)
+        # by the time the engine let the requester answer, the browser had really been given (and had played) the spoken hint
+        assert any(t == tok for t, n in rig.port.audio_log if n > 0), "the hint line never produced any audio"
+        assert tok in rig.port.ended and tok not in rig.eng._live
+        await rig.down()
+    run(main())
+
+
+def test_a_provider_that_sends_no_completion_after_the_tool_response_still_speaks_the_hint(monkeypatch):
+    monkeypatch.setattr(livemod, "TOOL_TURN_S", 0.4)
+    async def main():
+        rig = await Rig().up()
+        rig.t.tool_turn_ms = None
+        track = await to_music_hold(rig, names=("Mina",))
+        await speak(rig, "report_answer", {"heard": "give me a hint", "recognition": "clear"}, "answer")
+        await rig.until(lambda: rig.eng.phase == "buzzer.answering" and rig.mc.listen is not None and rig.mc.listen.purpose == "answer", timeout=10)
+        tok = _cue_token(rig, "hint_grant")
+        assert any(t == tok for t, n in rig.port.audio_log if n > 0)
+        await rig.down()
+    run(main())
+
+
+def test_an_empty_turn_for_a_hint_cue_is_retried_once_and_then_it_speaks(caplog):
+    caplog.set_level(logging.INFO, logger="khqs.mc")
+    async def main():
+        rig = await Rig().up()
+        rig.t.empty_cues = {"hint_grant": 1}
+        track = await to_music_hold(rig, names=("Mina",))
+        await speak(rig, "report_answer", {"heard": "hint", "recognition": "clear"}, "answer")
+        await rig.until(lambda: rig.eng.phase == "buzzer.answering" and rig.mc.listen is not None and rig.mc.listen.purpose == "answer", timeout=10)
+        assert sum(t.startswith("[CUE hint_grant]") for t in rig.t.turns) == 2  # sent once more, not twice more
+        tok = _cue_token(rig, "hint_grant")
+        assert any(t == tok for t, n in rig.port.audio_log if n > 0)
+        await rig.down()
+    run(main())
+    assert "mc empty turn cue=hint_grant, trying once more" in caplog.text and "giving up" not in caplog.text
+
+
+def test_two_empty_turns_are_logged_and_the_show_goes_on(caplog):
+    caplog.set_level(logging.INFO, logger="khqs.mc")
+    async def main():
+        rig = await Rig().up()
+        rig.t.empty_cues = {"hint_grant": 5}
+        await to_music_hold(rig, names=("Mina",))
+        await speak(rig, "report_answer", {"heard": "hint", "recognition": "clear"}, "answer")
+        await rig.until(lambda: rig.eng.phase == "buzzer.answering" and rig.mc.listen is not None and rig.mc.listen.purpose == "answer", timeout=10)
+        assert sum(t.startswith("[CUE hint_grant]") for t in rig.t.turns) == 2  # one retry, never a loop
+        assert rig.mc.state == "online"
+        await rig.down()
+    run(main())
+    assert "mc empty turn cue=hint_grant, trying once more" in caplog.text
+    assert "mc empty turn again cue=hint_grant, giving up on this line" in caplog.text
+
+
+def test_the_other_hint_cues_are_also_checked_for_audio_and_other_cues_are_not_retried():
+    async def main():
+        rig = await Rig().up()
+        rig.t.empty_cues = {"hint_ask": 1, "hint_refused": 1, "greeting": 1}
+        await to_music_hold(rig, names=("Mina", "Junho"))
+        await speak(rig, "report_answer", {"heard": "hint", "recognition": "clear"}, "answer")
+        await rig.until(lambda: sum(t.startswith("[CUE hint_ask]") for t in rig.t.turns) == 2, timeout=10)  # one empty, one retry
+        await rig.until(lambda: rig.mc.listen is not None and rig.mc.listen.purpose == "consent" and rig.mc.listen.mic_open, timeout=10)
+        await speak(rig, "report_vote", {"heard": "no way", "recognition": "clear"}, "consent")
+        await rig.until(lambda: sum(t.startswith("[CUE hint_refused]") for t in rig.t.turns) == 2, timeout=10)
+        assert sum(t.startswith("[CUE greeting]") for t in rig.t.turns) == 1  # an empty greeting is not retried
+        await rig.until(lambda: rig.eng.phase == "buzzer.answering" and rig.mc.listen is not None and rig.mc.listen.purpose == "answer", timeout=10)
+        await rig.down()
+    run(main())
+
+
+def test_the_log_shows_each_cue_sent_whether_audio_came_back_and_each_tool_call_and_nothing_else(caplog):
+    caplog.set_level(logging.INFO, logger="khqs.mc")
+    async def main():
+        rig = await Rig().up()
+        track = await to_music_hold(rig, names=("Mina",))
+        await speak(rig, "report_answer", {"heard": "It's too hard, give me a hint!", "recognition": "clear"}, "answer")
+        await rig.until(lambda: rig.eng.phase == "buzzer.answering" and rig.mc.listen is not None and rig.mc.listen.purpose == "answer", timeout=10)
+        rig.secrets = (*track.clues, track.composer, track.answer, "too hard", "give me a hint")
+        await rig.down()
+        return rig
+    rig = run(main())
+    text = caplog.text
+    assert "mc tool call name=report_answer" in text
+    assert "mc cue sent cue=hint_grant try=1" in text
+    import re
+    done = re.search(r"mc cue done cue=hint_grant audio_ms=(\d+)", text)
+    assert done and int(done.group(1)) > 0
+    assert "mc cue sent cue=greeting" in text
+    for secret in rig.secrets:  # counts and names only: no player words, no clue, no composer, no title
+        assert secret.lower() not in text.lower(), secret

@@ -158,6 +158,7 @@ Every MC utterance that precedes a reveal (question reading, suspense line, betr
 ### 9.5 Audio plumbing
 
 - PCM 16 kHz mono in (mic → Live), 24 kHz out (Live → browser).
+- **Tool-call turns.** The model's turn that makes a tool call (`report_answer`, `report_vote`, …) stays open until the tool response and then ends with a `turn_complete` of its own, a few ms later. A cue sent in that gap would take that `turn_complete` for its own end and never be heard (the P7 play-test bug: `hint_grant` ended 44 ms after it started). The adapter therefore holds the next cue until that `turn_complete` arrives, or 1.5 s. A hint cue (`hint_ask`, `hint_grant`, `hint_refused`, `hint_none`) whose turn ends with no audio is sent once more; a second empty turn is logged and the show goes on.
 - The MC voice plays in the stage page through the host bridge (`KHQS_HOST`, interface §7.1) on the same `AudioContext` the stage uses.
 - On a buzz: flush browser MC playback (`stopMc()`) and interrupt Live. Expect Live to send `interrupted` followed by a late `turn_complete`; that order must not be treated as an error (it crashed the prototype once).
 - Prototype model: `gemini-3.8-live` (google-genai SDK 2.6.0), voice Despina. Kiro may choose otherwise; keep the cost guard (§11).
