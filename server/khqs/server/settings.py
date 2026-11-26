@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import ipaddress
 import os
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
@@ -44,6 +45,14 @@ class Settings:
     live_model: str = "gemini-3.8-live"
     live_voice: str = "Despina"
     live_log: Path | None = None  # optional: one line (time, purpose) per real session opened
+    # public demo mode (docs/PUBLIC_DEMO.md): the show behind a tunnel, mock MC only for the public
+    public: bool = False
+    public_host: str = ""
+    operator_secret: str | None = field(default=None, repr=False, compare=False)  # never printed, logged or sent to a page
+    game_cap_s: int = 40 * 60  # GAME_RULES section 11, applied to public games
+    idle_reset_s: int = 240
+    diag: bool = False  # KHQS_DIAG=1 enables GET /api/diag (process and table sizes) for soak runs; local and operator only
+    disconnect_grace_s: float = 2.0  # a phone that drops and returns within this time (a reload) is never shown as disconnected
     join_grace_s: float = 10.0  # a joined player with no phone socket by then is shown as disconnected
 
     def validate(self) -> "Settings":
@@ -60,6 +69,14 @@ class Settings:
         for name, port in (("stage", self.stage_port), ("phone", self.phone_port)):
             if port in RESERVED_PORTS:
                 raise SettingsError(f"{name} port {port} is reserved for another service")
+        if self.operator_secret is not None and len(self.operator_secret) < 16:
+            raise SettingsError("the operator secret must be at least 16 characters")
+        if self.public:
+            h = self.public_host
+            if not h or not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?", h) or ".." in h:
+                raise SettingsError("public mode needs KHQS_PUBLIC_HOST: a bare host name (no scheme, port, path or spaces)")
+            if not self.operator_secret:
+                raise SettingsError("public mode needs an operator secret (KHQS_OPERATOR_SECRET or KHQS_OPERATOR_SECRET_FILE)")
         if self.mc not in ("mock", "live"):
             raise SettingsError("KHQS_MC must be mock or live")
         if self.mc == "live" and not _is_loopback(self.stage_host):
@@ -70,7 +87,11 @@ class Settings:
 
     @property
     def join_url(self) -> str:
-        return self.public_phone_url or f"http://{self.phone_host}:{self.phone_port}/ticket.html"
+        if self.public_phone_url:
+            return self.public_phone_url
+        if self.public:
+            return f"https://{self.public_host}/ticket.html"
+        return f"http://{self.phone_host}:{self.phone_port}/ticket.html"
 
     @classmethod
     def from_env(cls, env=os.environ) -> "Settings":
@@ -102,6 +123,16 @@ class Settings:
             kw["live_voice"] = g("KHQS_LIVE_VOICE")
         if g("KHQS_LIVE_LOG"):
             kw["live_log"] = Path(g("KHQS_LIVE_LOG")).expanduser()
+        if g("KHQS_PUBLIC") == "1":
+            kw["public"] = True
+        if g("KHQS_PUBLIC_HOST"):
+            kw["public_host"] = g("KHQS_PUBLIC_HOST").strip().lower()
+        if g("KHQS_OPERATOR_SECRET_FILE"):
+            kw["operator_secret"] = Path(g("KHQS_OPERATOR_SECRET_FILE")).expanduser().read_text(encoding="utf-8").strip()
+        elif g("KHQS_OPERATOR_SECRET"):
+            kw["operator_secret"] = g("KHQS_OPERATOR_SECRET")
+        if g("KHQS_DIAG") == "1":
+            kw["diag"] = True
         if g("KHQS_BANK"):
             kw["bank_path"] = Path(g("KHQS_BANK")).expanduser()
         if g("KHQS_ALLOW_LOOPBACK_PHONE") == "1":

@@ -22,13 +22,13 @@ def _config(app, host: str, port: int) -> uvicorn.Config:
                           lifespan="off")
 
 
-async def serve(settings: Settings, ready: threading.Event | None = None, holder: dict | None = None) -> None:
+async def serve(settings: Settings, ready: threading.Event | None = None, holder: dict | None = None, host_factory=GameHost) -> None:
     settings.validate()
     try:
         bank = load_bank(settings.bank_path, settings.media_dir) if settings.bank_path else build_dev_bank(settings.media_dir)
     except BankError as e:
         raise SystemExit(f"question bank {settings.bank_path} is not usable:\n{e}") from None
-    host = GameHost(settings, bank)
+    host = host_factory(settings, bank)
     stage_app, phone_app = build_apps(host, settings)
     servers = [uvicorn.Server(_config(stage_app, settings.stage_host, settings.stage_port)),
                uvicorn.Server(_config(phone_app, settings.phone_host, settings.phone_port))]
@@ -54,8 +54,9 @@ async def serve(settings: Settings, ready: threading.Event | None = None, holder
 class RunningServer:
     """The server in a background thread (tests, headless runs)."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, host_factory=GameHost) -> None:
         self.settings = settings
+        self.host_factory = host_factory
         self.holder: dict = {}
         self.ready = threading.Event()
         self.error: BaseException | None = None
@@ -63,7 +64,7 @@ class RunningServer:
 
     def _run(self) -> None:
         try:
-            asyncio.run(serve(self.settings, self.ready, self.holder))
+            asyncio.run(serve(self.settings, self.ready, self.holder, self.host_factory))
         except BaseException as e:  # noqa: BLE001
             self.error = e
             self.ready.set()

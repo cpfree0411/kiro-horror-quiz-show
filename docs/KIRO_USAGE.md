@@ -1,0 +1,117 @@
+# How Kiro was used in this repo
+
+This is a factual account for the Kiroween submission. It lists what Kiro did, what it did not do, and how each result was checked. Every claim points at a file in the repo.
+
+## What was made outside Kiro
+
+Kiro did not make any of these. They came in the handoff package or were added by someone else:
+
+- **The stage**: `stage/` (page, scripts, styles), its art plates, animation, transitions, opening, lobby and finale. Made by the project owner with other AI tools: Claude Code for the stage code, ChatGPT image editing for the art plates, Gemini for some music, Pixabay for the sound effects (`docs/HANDOFF.md` section 1).
+- **Sound effects and music cues** under `stage/`.
+- **The wire protocol** `khqs.stage/1`: `interface/` (spec, JSON Schema, scenarios, validator).
+- **The question content.** The English bank `banks/en-bank.json` and `tests/test_en_bank.py` (commit `c9aaa01`, phase P4) were written by another agent, after Kiro's P3, with Claude Code. Kiro was told not to edit them in P6 and did not.
+- **Five of the six steering files**: `product.md`, `stage-contract.md`, `language-and-voice.md`, `secrecy-and-safety.md`, `structure.md` came in the handoff. Kiro edited `product.md` and `language-and-voice.md` in P3 for the English-only scope change.
+
+`MANIFEST.sha256` pins every frozen file. Kiro copied those files in P0 and has not edited them since; this is checked by `scripts/check_manifest.sh` (see "Hooks").
+
+## What Kiro made
+
+Everything under `server/`, `tests/`, `scripts/`, `docs/` other than `HANDOFF.md`, the specs in `.kiro/specs/`, `.kiro/steering/tech.md` and the hooks in `.kiro/hooks/`. Commits by phase:
+
+| Phase | Commit | Content |
+| --- | --- | --- |
+| P0 | `d6222e8`, `ea2b576` | Repo bootstrap from the handoff, manifest check, stack choice, ports |
+| P1 | `c9666d6` | Engine core: rules, content model, flow, views, simulation harness |
+| P2 | `c22e9b2` | Server, connector, phone UI, mock MC, port split, headless-browser acceptance |
+| P3 | `f2e323a` | Gemini Live MC, browser audio host, bank format and loader, English-only scope, collapsible pad |
+| P4 | `c9aaa01` | Not Kiro's: English question bank and its tests |
+| P6 | the commit that adds this file | Public demo mode, soak and leak fixes, hooks, docs |
+
+P5 (packaging the submission) is not done.
+
+## Steering
+
+Steering files are in `.kiro/steering/`, all with `inclusion: always`.
+
+- From the handoff: `product.md`, `stage-contract.md`, `language-and-voice.md`, `secrecy-and-safety.md`, `structure.md`. They set the frozen boundary, the secrecy rules (nothing about an answer reaches the model before its reveal), the key rule (the Gemini key is read only at MC connect, never printed or committed), and the repo layout.
+- Written by Kiro in P0: `tech.md`, the stack and environment notes (venv outside the repo, `-B` so no `__pycache__` appears under `interface/`). Edited in P2, P3 and P6 as the stack grew.
+
+Rules from steering that changed what Kiro did: the frozen-file boundary became a manifest test in P0 and a hook in P6; the secrecy rule became a full-game scan of every prompt, tool result and caption in P3 (`tests/server/test_live_mc.py`); the key rule became tests with sentinel values.
+
+## Specs
+
+Each phase started with a spec before code: requirements, design, tasks. At the end of each phase a `verification.md` maps every requirement to the test or run that shows it.
+
+| Phase | Spec folder | Files |
+| --- | --- | --- |
+| P0 | `.kiro/specs/p0-bootstrap/` | requirements, design, tasks (no verification file) |
+| P1 | `.kiro/specs/p1-engine-core/` | requirements, design, tasks, verification |
+| P2 | `.kiro/specs/p2-server/` | requirements, design, tasks, verification |
+| P3 | `.kiro/specs/p3-live-mc/` | requirements, design, tasks, verification |
+| P4 | none | the other agent wrote no spec |
+| P6 | `.kiro/specs/p6-hardening/` | requirements, design, tasks, verification |
+
+The owner reviewed and accepted each phase (P0 to P3) before the next began. Several of the owner's answers shaped the specs: competition ranking, first submission final with a select-then-LOCK IN phone UI, join order seats 1, 0, 2, the interface table as the truth for gate timeouts, and the English-only scope.
+
+## How things were verified, by phase
+
+Fast test counts at the end of each phase (`scripts/test.sh`, pytest). Slow tests run real headless Chromium and take minutes each.
+
+| Phase | Fast tests | Slow tests | Notes |
+| --- | --- | --- | --- |
+| P0 | 8 | 1 (static `#demo` page, 280 s) | Manifest, validator, extra-file check |
+| P1 | 179 | 0 | Rules and engine against the interface validator and scripted full games |
+| P2 | 239 | 8 | Real sockets, phone and stage pages in Chromium, port split |
+| P3 | 319 | 10 | Fake Live transport in tests; browser audio host test |
+| P6 | 392 | 11 | Includes `tests/e2e/test_public_browser.py` |
+
+Where verification found real problems:
+
+- P0: `scripts/setup_dev.sh` was broken. Found in P1 when it was used for the first time.
+- P2: the on-screen pad covered the NEW SHOW button. Found in a screenshot from the browser acceptance run. Fixed with a collapsible pad.
+- P3: the first real Gemini run showed a bug that the fake transport had hidden. A buzz that cut a reading in flight left the microphone closed (drain and listen logic). Fixed, with a test that fails without the fix (`tests/server/test_live_mc.py`).
+- P6: the soak run found three leaks, listed below.
+
+### Validation sub-agent
+
+The `validation` sub-agent was used once, at the end of P2, with the verdict PASS. It noted that "credential" in the join rule is read as the per-tab client id. It was not used in P3 or P6.
+
+### Web search
+
+Web search was used once, in P3, to check the current Gemini Live model name. The chosen default (`gemini-3.8-live`, configurable) is in `.kiro/specs/p3-live-mc/design.md`.
+
+### Real Gemini sessions
+
+Four real Live sessions, all in P3 (one speech fixture, three smoke games), logged outside the repo in `/srv/workdata/build-cache/khqs-evidence/p3/`. Tests never call the live API. P6 opened no real session.
+
+## P6 in detail
+
+### Public demo mode
+
+Spec: `.kiro/specs/p6-hardening/requirements.md` (P1 to P12). Code: `server/khqs/server/guards.py`, `app.py`, `host.py`, `settings.py`. Guide: `docs/PUBLIC_DEMO.md`. Tests: `tests/test_guards.py` (13), `tests/server/test_public_mode.py` (18), `tests/e2e/test_public_browser.py` (1, slow). A tunnel was **not** set up and Cloudflare was not touched; the document describes the intended setup only.
+
+### Soak and robustness
+
+`scripts/soak.py` runs the server as a separate process and reads numbers from `/proc/<pid>` and from `/api/diag` (enabled only with `KHQS_DIAG=1`). In-process measurement was tried first and was polluted by the client threads. Findings and fixes:
+
+1. Join-grace timers were never cancelled, so each game left two timers and kept an engine alive (timers 4 to 63 over 30 games, RSS +5 MB). Fixed in `host.py`.
+2. A connection whose writer queue was full did not cancel its writer task on close. Fixed in `Conn.close()`.
+3. A phone reload made the seat flap offline and online, and each flap sent messages to the stage (about 1000 stream messages per storm round). The phone disconnect is now debounced (`disconnect_grace_s`, default 2 s). Stream growth fell to 2 per round.
+
+Four tests in `tests/server/test_leaks.py` cover them; three were run against the unfixed code and failed there. Numbers are in `.kiro/specs/p6-hardening/verification.md`.
+
+### Hooks
+
+Files: `.kiro/hooks/frozen-boundary.json`, `bank-check.json`, `quick-tests.json`, `stop-gate.json`. They call `scripts/check_manifest.sh` (`sha256sum -c MANIFEST.sha256` plus a check for extra files), `scripts/check_banks.sh` (`scripts/check_bank.sh` on every bank), `scripts/test_quick.sh` (about 10 s) and `scripts/check_all_quick.sh` (all three, run when the agent ends a turn).
+
+- The full fast suite takes about 2.5 minutes, so it is not a hook. Run `scripts/test.sh` on demand.
+- The hooks were created with Kiro's `createHook` tool. The tool wrote them to the workspace root (`/srv/workdata/projects/.kiro/hooks/`), so they were moved into this repo's `.kiro/hooks/`.
+- `tests/test_kiro_hooks.py` (18 tests) checks the hook files: format, that each matcher hits real paths and misses others, that the commands exist and run, and that a changed file in a temporary copy of `stage/` makes the manifest script fail. It works on temp copies, so the real `stage/` is never touched.
+- **Not verified:** the hooks never fired in the Kiro session that wrote them. Kiro loads hooks at the start of a session. What is verified is the format, the matchers and the scripts, run by hand and by the tests. Whether Kiro fires them on a file save is not observed.
+
+## Limits of this account
+
+- The stage, art, sound and question content were made outside Kiro.
+- No real Cloudflare tunnel was set up. Public mode was tested against local requests with forwarding headers and a fake public host.
+- Human voice with room echo has not been tested. Real Gemini sessions used a synthetic voice through a fake microphone.
+- The hooks have not been seen firing inside Kiro.

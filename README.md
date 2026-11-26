@@ -11,7 +11,7 @@ A kitschy, cute Halloween quiz show in the browser. A ghost MC hosts, one to thr
 - the `khqs.stage/1` protocol, its schema, scenarios and validator (`interface/`)
 - an earlier private prototype whose lessons are written into `docs/`
 
-**Made with Kiro in this repo (P0 to P3):** the engine, server, connector, mock MC, Gemini Live MC, phone UI, the question bank format and loader, tests and docs written after the handoff. Specs and steering are in [`.kiro/specs`](.kiro/specs) and [`.kiro/steering`](.kiro/steering). This list grows phase by phase.
+**Made with Kiro in this repo (P0 to P3, and P6):** the engine, server, connector, mock MC, Gemini Live MC, phone UI, the question bank format and loader, the public demo mode and its guards, the soak and leak checks, the Kiro hooks, tests and docs written after the handoff. How Kiro was used, phase by phase, is in [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md). Specs and steering are in [`.kiro/specs`](.kiro/specs) and [`.kiro/steering`](.kiro/steering). This list grows phase by phase.
 
 **Made after Kiro, with Claude Code (P4):** the English question content in `banks/en-bank.json` and its test `tests/test_en_bank.py`.
 
@@ -59,12 +59,18 @@ The bottom-left chip shows PRIMARY or VIEWER, the MC state and the phase. A seco
 | `KHQS_LIVE_LOG` | none | append one line (time, purpose) per real session opened |
 | `KHQS_BUZZER_ANSWER_MS` | `20000` (`60000` with the live MC) | the buzz-in answer window |
 | `KHQS_SEED` | random | fix the game seed |
+| `KHQS_PUBLIC`, `KHQS_PUBLIC_HOST`, `KHQS_OPERATOR_SECRET_FILE` | off | public demo mode behind a tunnel, see `docs/PUBLIC_DEMO.md` |
+| `KHQS_DIAG` | off | `1` enables `GET /api/diag` (process and table sizes) for the soak runs; local only |
 
 Ports 8814, 18815, 18817 and 18818 belong to other services and are refused.
 
 ### Live MC
 
 `KHQS_MC=live` makes the START sign (a) ask the browser for microphone permission, (b) open the audio socket `/ws/mc`, (c) open **one** Gemini Live session, and only then start the show. Failures write `MIC NEEDED` or `MC OFFLINE — TRY AGAIN` in the lobby. The microphone needs a secure context, so use `localhost` (the SSH tunnel). The MC speaks and listens in English only. Spoken answers come back as tool calls with `heard` verbatim; the engine judges them locally, and the model never sees an answer, alias or explanation before the reveal. If the session ends (error, cap, provider GoAway without resumption), the MC goes offline, the show continues with phone typing, and the chip offers RECONNECT MC (an explicit action; there is no automatic reconnect). Caps: 40 minutes per session, 240 s without show activity, 35 s response or playback stall. Free-tier note: each START or reconnect opens one real session.
+
+### Public demo mode
+
+`docs/PUBLIC_DEMO.md` explains how the show can sit behind a tunnel: visitors get the stage, phones and the mock MC only; operator actions and the live MC need the operator secret from a local request; one game at a time with the §11 caps; per-address rate limits. Nothing is deployed from this repo.
 
 ### Question bank
 
@@ -109,16 +115,18 @@ Not chosen yet; the owner decides before submission. Plan: MIT for the code writ
 
 ## Tests
 
-`scripts/test.sh` runs the fast suite (319 tests, about two minutes). Tests never call the Gemini API; the live MC is tested with a fake transport.
+`scripts/test.sh` runs the fast suite (about two to three minutes). Tests never call the Gemini API; the live MC is tested with a fake transport.
 
 Slow tests (`scripts/test.sh -m slow <file>`, run them in parallel processes): `tests/e2e/test_live_games.py -k players1|players2|players3` (full games in a real browser, 3-5 min each), `tests/e2e/test_live_misc.py` (replay hashes, `#demo`, reload and take-over), `tests/e2e/test_live_mc_browser.py` (a full game through the browser audio host with a fake Live transport), `tests/e2e/test_stage_demo_static.py` (the stage alone), plus `tests/server/test_live_mc.py -k nothing_sent` and `tests/server/test_sockets_and_api.py -k pump_runs`.
+
+`scripts/soak.py` runs soak and robustness checks against a real server in its own process: `games 30` (back-to-back games through NEW SHOW), `storm` (phone and stage reconnect storms), `idle 3600 [public]`. `scripts/test_quick.sh` is the ten-second subset the Kiro hooks run (`.kiro/hooks/`, see `docs/KIRO_USAGE.md`); `scripts/check_manifest.sh` and `scripts/check_banks.sh` are the other two hook scripts.
 
 `scripts/live_smoke.py` is the one deliberate real-API helper (opens real Live sessions; never run by tests). Evidence from all runs lives outside the repo in `/srv/workdata/build-cache/khqs-evidence/`.
 
 ## Handoff (what the next agent does)
 
 1. **P4, the English question bank: done.** `banks/en-bank.json` (two sets of eight, three music tracks), checked with `scripts/check_bank.sh` (0 errors, 0 warnings) and on the real stage boards; act-2 explanations are short because the stage draws them as the big answer card.
-2. **P5, packaging.** README polish and the disclosure (kept current below), license (the owner plans MIT for code; `stage/` and `media/` keep their own terms), the demo video (the owner), optional public deploy behind the guard in `docs/HANDOFF.md` §8. Never expose the stage listener or the live MC beyond localhost.
+2. **P5, packaging.** README polish and the disclosure (kept current below), license (the owner plans MIT for code; `stage/` and `media/` keep their own terms), the demo video (the owner), optional public deploy: the server side is done (`docs/PUBLIC_DEMO.md`: guards, settings, the intended tunnel setup; nothing is deployed). Never expose the stage listener or the live MC beyond localhost.
 
 Evidence from each phase (screenshots, logs, real-run reports) is in `/srv/workdata/build-cache/khqs-evidence/` on the owner's host; it is not in the repo. Per-phase specs and verification tables: `.kiro/specs/`.
 

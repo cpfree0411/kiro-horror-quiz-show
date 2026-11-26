@@ -98,7 +98,7 @@
       if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(msg));
       else if (this.queue.length < 200) this.queue.push(msg);
     }
-    open(take) {
+    open(take, takeSecret) {
       clearTimeout(this.rt);
       const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/stage?cid=${encodeURIComponent(cid)}${take ? '&take=1' : ''}`;
       const ws = new WebSocket(url);
@@ -106,6 +106,7 @@
       ws.onopen = () => {
         if (this.ws !== ws) return;
         live.status = 'online'; live.role = 'primary';
+        if (take && takeSecret) ws.send(JSON.stringify({ type: 'khqs.operator', secret: takeSecret }));  // before the hello, never in the URL
         ws.send(JSON.stringify({ proto: PROTO, type: 'stage.hello', data: { role: 'primary', stageVersion: 'khqs-live-0.1', lastSseq: this.last, clientTime: performance.now(), beats: this.beats } }));
         if (this.hadOpen) this.queue = []; // acks queued while offline refer to gates that are gone; the snapshot re-acks
         this.hadOpen = true;
@@ -147,10 +148,20 @@
   window.MockEngine = LiveEngine;
 
   // ---- entry hooks
-  const post = async (path, body) => {
+  // The operator secret is typed by the operator when needed and lives only in this variable: not in the page, a URL, storage or a log.
+  let opSecret = null;
+  function secret() {
+    if (!CFG.secretRequired) return null;
+    if (!opSecret) opSecret = window.prompt('Operator secret (kept in this page only)') || null;
+    return opSecret;
+  }
+  const post = async (path, body, op) => {
+    const headers = { 'content-type': 'application/json', 'X-KHQS': '1', 'X-KHQS-Cid': cid };
+    if (op && CFG.secretRequired) { const s = secret(); if (s) headers['X-KHQS-Operator'] = s; }
     try {
-      const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', 'X-KHQS': '1' }, body: JSON.stringify(body || {}) });
-      return await r.json();
+      const resp = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body || {}) });
+      if (resp.status === 403 && op) opSecret = null;  // a wrong secret is asked for again next time
+      return await resp.json();
     } catch (e) { return { error: 'SERVER NOT REACHABLE' }; }
   };
   window.KHQS_JOIN_URL = CFG.joinUrl;
@@ -171,7 +182,7 @@
       if (r.error) fail(r.error);
     },
     async reset(force) {
-      const r = await post('/api/reset', { force: !!force });
+      const r = await post('/api/reset', { force: !!force }, !!force);
       return r.ok ? { ok: true } : { error: r.error || 'NOT NOW' };
     },
   };
@@ -182,15 +193,21 @@
   async function ensureMc() {
     try {
       if (!window.KHQS_McAudio) await loadScript('/play/mc-audio.js');
-      await window.KHQS_McAudio.connect();
+      await window.KHQS_McAudio.connect(secret());
     } catch (e) { return e && e.message === 'MIC NEEDED' ? 'MIC NEEDED' : 'MC OFFLINE — TRY AGAIN'; }
-    const r = await post('/api/mc/connect');
+    const r = await post('/api/mc/connect', {}, true);
     mcPoll();
     return r.error ? 'MC OFFLINE — TRY AGAIN' : null;
   }
   async function mcPoll() {
     if (!CFG.liveVoice) return;
-    try { mcInfo = await (await fetch('/api/mc/status')).json(); } catch (e) { mcInfo = { state: 'offline', reason: 'server not reachable' }; }
+    if (!CFG.operator || (CFG.secretRequired && !opSecret)) return;  // public clients and a not-yet-authorised operator do not poll
+    try {
+      const h = CFG.secretRequired ? { 'X-KHQS-Operator': opSecret } : {};
+      const resp = await fetch('/api/mc/status', { headers: h });
+      if (resp.status === 403) { opSecret = null; return; }
+      mcInfo = await resp.json();
+    } catch (e) { mcInfo = { state: 'offline', reason: 'server not reachable' }; }
     chipUpdate();
   }
   if (CFG.liveVoice) setInterval(mcPoll, 2000);
@@ -251,8 +268,10 @@
     const mcText = CFG.liveVoice ? `MC ${mcInfo.state.toUpperCase()}` : 'MOCK MC';
     chip.dataset.mc = mcInfo.state;
     chip.querySelector('.st').textContent = `${live.status === 'online' ? '●' : '○'} ${live.role.toUpperCase()} · ${mcText} · ${live.phase}`;
-    chip.querySelector('.mcre').style.display = CFG.liveVoice && mcInfo.state === 'offline' ? '' : 'none';
-    chip.querySelector('.take').style.display = live.role === 'viewer' ? '' : 'none';
+    const mcre = chip.querySelector('.mcre');
+    if (mcre) mcre.style.display = CFG.liveVoice && mcInfo.state === 'offline' ? '' : 'none';
+    const take = chip.querySelector('.take');
+    if (take) take.style.display = live.role === 'viewer' ? '' : 'none';
     padRender();
   }
   function buildChrome() {
@@ -276,9 +295,14 @@
     padBox.innerHTML = '<div class="lbl">SCREEN PAD: visible to everyone in the room. Use your phone to keep your answers private.</div><div class="frames"></div>';
     document.body.appendChild(padBox);
     chip.querySelector('.pad').onclick = () => { padState.manual = !padOpen(); padRender(); };
-    chip.querySelector('.take').onclick = () => { live.engine.ws && live.engine.ws.close(); clearTimeout(live.engine.rt); live.engine.open(true); };
-    chip.querySelector('.mcre').onclick = async () => { const m = await ensureMc(); if (m) alert(m); mcPoll(); };
-    chip.querySelector('.new').onclick = () => { if (confirm('Start a new show now? The current game will be lost.')) KHQS_ENTRY.reset(true); };
+    chip.querySelector('.take').onclick = () => {
+      const s = secret();
+      if (CFG.secretRequired && !s) return;
+      live.engine.ws && live.engine.ws.close(); clearTimeout(live.engine.rt); live.engine.open(true, s);
+    };
+    if (!CFG.operator) chip.querySelectorAll('.take, .new, .mcre').forEach(b => b.remove());   // public clients get no operator buttons
+    if (chip.querySelector('.mcre')) chip.querySelector('.mcre').onclick = async () => { const m = await ensureMc(); if (m) alert(m); mcPoll(); };
+    if (chip.querySelector('.new')) chip.querySelector('.new').onclick = () => { if (confirm('Start a new show now? The current game will be lost.')) KHQS_ENTRY.reset(true); };
     chipUpdate(); padRender();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', buildChrome); else buildChrome();

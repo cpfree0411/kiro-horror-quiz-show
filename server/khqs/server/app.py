@@ -1,4 +1,8 @@
-"""The two ASGI apps. The phone app gets a strict subset of the stage app's routes."""
+"""The two ASGI apps. The phone app (LAN) gets a strict subset of the stage app's routes.
+
+Every stage-app handler starts with `admit()`, which classifies the request (local, public or refused), enforces the
+private-show lock and the per-client limits, so a route cannot forget its guard (docs/PUBLIC_DEMO.md).
+"""
 from __future__ import annotations
 
 import asyncio
@@ -12,11 +16,11 @@ from starlette.responses import FileResponse, JSONResponse, PlainTextResponse, R
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from . import pages
 from ..mc.live import LiveMc
 from ..mc.transport import LiveError
+from . import guards, pages
 from .host import Conn, GameHost
-from .settings import LOOPBACK_NAMES, Settings
+from .settings import Settings
 
 PHONE_MAX_BYTES = 2048
 PHONE_RATE = 20  # messages per second
@@ -25,18 +29,12 @@ STAGE_MAX_BYTES = 65536
 HELLO_TIMEOUT = 5.0
 JOIN_MAX_BYTES = 1024
 NOCACHE = {"Cache-Control": "no-store"}
+LAN = "lan"
 
 # Route tables, used by the apps and by the port-split test.
 PHONE_PATHS = ("/ticket.html", "/phone", "/phone/phone.css", "/phone/phone.js", "/play/ticket-hook.js", "/api/join", "/ws/phone")
 STAGE_ONLY_PATHS = ("/", "/index.html", "/stage.js", "/assets/manifest.js", "/play/link.js", "/play/mc-audio.js", "/stage/assets/a-3f9c1d2e7b40",
                     "/api/start", "/api/reset", "/api/mc/connect", "/api/mc/disconnect", "/api/mc/status", "/ws/stage", "/ws/mc")
-
-
-def _hostname(host_header: str) -> str:
-    h = host_header.strip()
-    if h.startswith("["):
-        return h[1: h.index("]")]
-    return h.rsplit(":", 1)[0] if h.count(":") == 1 else h
 
 
 def same_origin(headers) -> bool:
@@ -45,33 +43,113 @@ def same_origin(headers) -> bool:
     return origin is None or origin in (f"http://{headers.get('host', '')}", f"https://{headers.get('host', '')}")
 
 
-def stage_request_ok(headers) -> bool:
-    """Stage app: loopback host names only (DNS rebinding) and a same-origin Origin."""
-    return _hostname(headers.get("host", "")) in LOOPBACK_NAMES and same_origin(headers)
+class SecurityHeaders:
+    """Public responses get nosniff, no referrer and same-origin framing (the pad is a same-origin iframe)."""
+
+    def __init__(self, app, settings: Settings) -> None:
+        self.app, self.settings = app, settings
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not self.settings.public:
+            return await self.app(scope, receive, send)
+        host = guards.hostname(dict((k.decode().lower(), v.decode("latin-1")) for k, v in scope["headers"]).get("host", ""))
+        if host != self.settings.public_host.lower():
+            return await self.app(scope, receive, send)
+
+        async def send2(msg):
+            if msg["type"] == "http.response.start":
+                msg = dict(msg)
+                msg["headers"] = [*msg["headers"], (b"x-content-type-options", b"nosniff"), (b"referrer-policy", b"no-referrer"),
+                                  (b"x-frame-options", b"SAMEORIGIN")]
+            await send(msg)
+        await self.app(scope, receive, send2)
 
 
 def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette]:
     media = pages.MediaStore(settings.media_dir, {t.asset_id: t.file for t in host.bank.tracks})
     stage_dir = settings.stage_dir
     web = pages.WEB
+    auth = guards.OperatorAuth(settings.operator_secret)
+    lim_join = guards.RateLimiter(2, 300)
+    lim_conn = guards.RateLimiter(30, 60)
+    lim_act = guards.RateLimiter(6, 60)
+    budget_stage = guards.SocketBudget(8, 12)
+    budget_phone = guards.SocketBudget(8, 12)
+    host.stats_providers.append(lambda: {"limiter_join": lim_join.size(), "limiter_conn": lim_conn.size(), "limiter_act": lim_act.size(),
+                                         "budget_stage": budget_stage.count, "budget_phone": budget_phone.count,
+                                         "budget_keys": budget_stage.size() + budget_phone.size()})
 
-    # ---------------------------------------------------------------- phone routes (both ports)
+    # ---------------------------------------------------------------- admission
+    def who(r) -> tuple[str | None, str]:
+        """(class, client address): lan | local | public | None."""
+        server = r.scope.get("server") or (None, None)
+        peer = r.client.host if r.client else ""
+        if server[1] == settings.phone_port:
+            return LAN, peer
+        return guards.classify(r.headers, peer, settings), guards.client_ip(r.headers, peer)
+
+    def admit(r, limiter: guards.RateLimiter | None = None):
+        """-> (class, ip, error response or None). Refuses unknown hosts, a private show, and clients over their limit."""
+        k, ip = who(r)
+        if k is None:
+            return None, ip, PlainTextResponse("forbidden", status_code=403)
+        if k == guards.PUBLIC:
+            if host.private_show:
+                return k, ip, JSONResponse({"error": "PRIVATE SHOW IN PROGRESS"}, status_code=503)
+            if limiter is not None and not limiter.allow(ip):
+                return k, ip, JSONResponse({"error": "TOO MANY TRIES. WAIT A BIT"}, status_code=429)
+        return k, ip, None
+
+    def operator(r, need_header: bool = True):
+        """Operator actions: a local client, the custom header (not for a plain GET), and (public mode, or whenever one is set) the secret."""
+        k, ip = who(r)
+        if k != guards.LOCAL or (need_header and r.headers.get("x-khqs") != "1") or not same_origin(r.headers):
+            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        if settings.public or auth.enabled:
+            res = auth.check(ip, r.headers.get(guards.SECRET_HEADER))
+            if res == "locked":
+                return JSONResponse({"error": "TOO MANY WRONG SECRETS. WAIT A MINUTE"}, status_code=429)
+            if res != "ok":
+                return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        return None
+
+    def show_action(r):
+        """start / normal reset. Local clients as before; a public client must be the primary stage page."""
+        k, ip, err = admit(r, lim_act)
+        if err is not None:
+            return err
+        if r.headers.get("x-khqs") != "1" or not same_origin(r.headers):
+            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        if k == guards.PUBLIC and (host.primary_cid() is None or r.headers.get("x-khqs-cid") != host.primary_cid()):
+            return JSONResponse({"error": "ONLY THE MAIN SCREEN CAN DO THAT"}, status_code=403)
+        return None
+
+    # ---------------------------------------------------------------- phone routes (LAN port, and the stage port)
     async def ticket(request: Request):
-        return Response(pages.ticket_html(stage_dir), media_type="text/html; charset=utf-8", headers=NOCACHE)
+        _, _, err = admit(request)
+        return err or Response(pages.ticket_html(stage_dir), media_type="text/html; charset=utf-8", headers=NOCACHE)
 
     async def phone_page(request: Request):
-        return FileResponse(web / "phone.html", headers=NOCACHE)
+        _, _, err = admit(request)
+        return err or FileResponse(web / "phone.html", headers=NOCACHE)
 
     async def phone_asset(request: Request):
+        _, _, err = admit(request)
+        if err is not None:
+            return err
         name = request.path_params["name"]
         if name not in ("phone.css", "phone.js"):
             return PlainTextResponse("not found", status_code=404)
         return FileResponse(web / name, headers=NOCACHE)
 
     async def ticket_hook(request: Request):
-        return FileResponse(web / "ticket-hook.js", media_type="text/javascript", headers=NOCACHE)
+        _, _, err = admit(request)
+        return err or FileResponse(web / "ticket-hook.js", media_type="text/javascript", headers=NOCACHE)
 
     async def api_join(request: Request):
+        k, ip, err = admit(request, lim_join)
+        if err is not None:
+            return err
         if request.headers.get("x-khqs") != "1" or not same_origin(request.headers):
             return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
         body = await request.body()
@@ -87,11 +165,15 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         return JSONResponse({"ok": True, "seat": r.data["seat"], "credential": r.data["credential"]}, headers=NOCACHE)
 
     async def ws_phone(ws: WebSocket):
-        if not same_origin(ws.headers):
+        k, ip = who(ws)
+        if k is None or not same_origin(ws.headers) or (k == guards.PUBLIC and (host.private_show or not lim_conn.allow(ip)
+                                                                              or not budget_phone.acquire(ip))):
             await ws.close(1008)
             return
+        held = k == guards.PUBLIC
         await ws.accept()
         sock = Conn(ws, "phone")
+        sock.klass, sock.ip = k, ip
         registered = False
         tokens, stamp = float(PHONE_RATE), time.monotonic()
         try:
@@ -128,6 +210,7 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
                         return
                     registered = True
                 elif kind == "action":
+                    host.touch_input()
                     r = host.run(host.engine.phone_action, sock.seat, msg.get("action"))
                     sock.send({"type": "result", "id": msg.get("id"), "ok": r.ok, "error": r.error})
                 elif kind == "ping":
@@ -135,63 +218,81 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         except (WebSocketDisconnect, asyncio.TimeoutError, RuntimeError):
             pass
         finally:
+            if held:
+                budget_phone.release(ip)
             host.phone_closed(sock)
             sock.close(1000)
 
     # ---------------------------------------------------------------- stage-only routes
     async def index(request: Request):
-        if not stage_request_ok(request.headers):
-            return PlainTextResponse("forbidden", status_code=403)
-        return Response(pages.index_html(stage_dir), media_type="text/html; charset=utf-8", headers=NOCACHE)
+        _, _, err = admit(request)
+        return err or Response(pages.index_html(stage_dir), media_type="text/html; charset=utf-8", headers=NOCACHE)
 
     async def link(request: Request):
-        return Response(pages.link_js(settings.join_url, settings.mc), media_type="text/javascript", headers=NOCACHE)
+        k, _, err = admit(request)
+        if err is not None:
+            return err
+        public_client = k == guards.PUBLIC
+        mc = "mock" if public_client else settings.mc  # strangers always get the mock MC
+        return Response(pages.link_js(settings.join_url, mc, operator=k == guards.LOCAL, secret_required=bool(settings.public or settings.operator_secret)),
+                        media_type="text/javascript", headers=NOCACHE)
 
     async def mc_audio_js(request: Request):
-        return FileResponse(web / "mc-audio.js", media_type="text/javascript", headers=NOCACHE)
+        k, _, err = admit(request)
+        if err is None and k != guards.LOCAL:
+            err = PlainTextResponse("not found", status_code=404)
+        return err or FileResponse(web / "mc-audio.js", media_type="text/javascript", headers=NOCACHE)
 
     async def stage_static(request: Request):
+        _, _, err = admit(request)
+        if err is not None:
+            return err
         p = pages.static_path(stage_dir, request.path_params["path"])
         if p is None:
             return PlainTextResponse("not found", status_code=404)
         return FileResponse(p, media_type=pages.media_type(p))
 
     async def stage_media(request: Request):
+        _, _, err = admit(request)
+        if err is not None:
+            return err
         p = media.path_for(request.path_params["asset_id"])
         if p is None:
             return PlainTextResponse("not found", status_code=404)
         return FileResponse(p, media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=86400"})
 
-    def operator_ok(request: Request) -> bool:
-        return stage_request_ok(request.headers) and request.headers.get("x-khqs") == "1"
-
     def live() -> LiveMc | None:
-        return host.mc if isinstance(host.mc, LiveMc) else None
+        return host.live_mc
 
     async def api_start(request: Request):
-        if not operator_ok(request):
-            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
-        if live() is not None and live().state != "online":
+        err = show_action(request)
+        if err is not None:
+            return err
+        if isinstance(host.mc, LiveMc) and host.mc.state != "online":
             return JSONResponse({"error": "MC OFFLINE — TRY AGAIN"})
         r = host.start()
         return JSONResponse({"ok": True} if r.ok else {"error": r.error})
 
     async def api_reset(request: Request):
-        if not operator_ok(request):
-            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
         try:
             force = bool((json.loads(await request.body() or b"{}") or {}).get("force"))
         except (ValueError, AttributeError):
             return JSONResponse({"error": "BAD REQUEST"}, status_code=400)
+        err = operator(request) if force else show_action(request)
+        if err is not None:
+            return err
         r = host.reset(force)
         return JSONResponse({"ok": True} if r.ok else {"error": r.error})
 
     async def api_mc_connect(request: Request):
-        if not operator_ok(request):
-            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        err = operator(request)
+        if err is not None:
+            return err
         mc = live()
         if mc is None:
             return JSONResponse({"ok": True, "mode": "mock"})
+        if settings.public and (host.has_public_clients() or host.engine.players or host.engine.phase != "lobby"):
+            return JSONResponse({"error": "NOT NOW: PUBLIC PLAYERS ARE CONNECTED OR A GAME IS RUNNING"})
         try:
             await mc.connect()  # the only way a real session starts: an explicit operator action
         except LiveError as e:
@@ -199,24 +300,45 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         return JSONResponse({"ok": True, "mode": "live"})
 
     async def api_mc_disconnect(request: Request):
-        if not operator_ok(request):
-            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        err = operator(request)
+        if err is not None:
+            return err
         if live() is not None:
             await live().disconnect()
         return JSONResponse({"ok": True})
 
     async def api_mc_status(request: Request):
-        if not stage_request_ok(request.headers):
-            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
-        return JSONResponse(live().status() if live() else {"mode": "mock", "state": "online", "reason": "ok", "sessionsOpened": 0},
-                            headers=NOCACHE)
+        err = operator(request, need_header=False)
+        if err is not None:
+            return err
+        mc = live()
+        return JSONResponse(mc.status() if mc else {"mode": "mock", "state": "online", "reason": "ok", "sessionsOpened": 0}, headers=NOCACHE)
+
+    async def api_diag(request: Request):
+        if not settings.diag:
+            return PlainTextResponse("not found", status_code=404)
+        err = operator(request, need_header=False)
+        if err is not None:
+            return err
+        from .stats import process_stats
+        return JSONResponse(process_stats(host), headers=NOCACHE)
 
     async def ws_mc(ws: WebSocket):
         mc = live()
-        if mc is None or not stage_request_ok(ws.headers):
+        k, ip = who(ws)
+        if mc is None or k != guards.LOCAL or not same_origin(ws.headers):
             await ws.close(1008)
             return
         await ws.accept()
+        if settings.public or auth.enabled:  # a browser cannot send headers on a WebSocket: the secret is the first frame, never in the URL
+            try:
+                first = json.loads(await asyncio.wait_for(ws.receive_text(), HELLO_TIMEOUT))
+                ok = first.get("t") == "hello" and auth.check(ip, first.get("secret")) == "ok"
+            except (ValueError, AttributeError, asyncio.TimeoutError, WebSocketDisconnect, RuntimeError):
+                ok = False
+            if not ok:
+                await ws.close(4003)
+                return
         sock = Conn(ws, "mc")
         old = host.mc_port.conn
         host.mc_port.conn = sock
@@ -250,17 +372,37 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
             sock.close(1000)
 
     async def ws_stage(ws: WebSocket):
-        if not stage_request_ok(ws.headers):
+        k, ip = who(ws)
+        if k is None or not same_origin(ws.headers) or k == LAN:
+            await ws.close(1008)
+            return
+        public_client = k == guards.PUBLIC
+        if public_client and (host.private_show or not lim_conn.allow(ip) or not budget_stage.acquire(ip)):
             await ws.close(1008)
             return
         q = parse_qs(urlparse(str(ws.url)).query)
         cid = (q.get("cid") or [""])[0][:64]
         take = (q.get("take") or ["0"])[0] == "1"
+        if take and public_client:
+            if public_client:
+                budget_stage.release(ip)
+            await ws.close(1008)  # taking over the main screen is an operator action
+            return
         await ws.accept()
         sock = Conn(ws, "stage")
+        sock.klass, sock.ip = k, ip
         sock.conn_id = host.new_conn_id()
         registered = False
         try:
+            if take and (settings.public or auth.enabled):  # the secret travels in a frame before the hello, never in the URL
+                try:
+                    first = json.loads(await asyncio.wait_for(ws.receive_text(), HELLO_TIMEOUT))
+                    ok = first.get("type") == "khqs.operator" and auth.check(ip, first.get("secret")) == "ok"
+                except (ValueError, AttributeError, asyncio.TimeoutError):
+                    ok = False
+                if not ok:
+                    sock.close(4003)
+                    return
             while True:
                 text = await (ws.receive_text() if registered else asyncio.wait_for(ws.receive_text(), HELLO_TIMEOUT))
                 if len(text) > STAGE_MAX_BYTES:
@@ -283,6 +425,8 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         except (WebSocketDisconnect, asyncio.TimeoutError, RuntimeError):
             pass
         finally:
+            if public_client:
+                budget_stage.release(ip)
             host.stage_closed(sock)
             sock.close(1000)
 
@@ -304,9 +448,11 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         Route("/api/mc/connect", api_mc_connect, methods=["POST"]),
         Route("/api/mc/disconnect", api_mc_disconnect, methods=["POST"]),
         Route("/api/mc/status", api_mc_status),
+        Route("/api/diag", api_diag),
         WebSocketRoute("/ws/mc", ws_mc),
         Route("/play/mc-audio.js", mc_audio_js),
         WebSocketRoute("/ws/stage", ws_stage),
         Route("/{path:path}", stage_static),  # last: frozen files by allowlist
     ]
-    return Starlette(routes=phone_routes + stage_only), Starlette(routes=phone_routes)
+    stage_app = SecurityHeaders(Starlette(routes=phone_routes + stage_only), settings)
+    return stage_app, Starlette(routes=phone_routes)

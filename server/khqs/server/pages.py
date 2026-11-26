@@ -62,8 +62,9 @@ def media_type(p: Path) -> str:
     return mimetypes.guess_type(str(p))[0] or "application/octet-stream"
 
 
-def link_js(joinUrl: str, mc: str) -> bytes:
-    cfg = {"joinUrl": joinUrl, "mc": mc, "liveVoice": mc == "live"}
+def link_js(joinUrl: str, mc: str, operator: bool = True, secret_required: bool = False) -> bytes:
+    """The connector with its config. `operator` is false for public clients (no operator buttons); the secret is never here."""
+    cfg = {"joinUrl": joinUrl, "mc": mc, "liveVoice": mc == "live", "operator": operator, "secretRequired": secret_required}
     src = (WEB / "link.js").read_text(encoding="utf-8")
     if "__KHQS_CONFIG__" not in src:
         raise InjectionError("link.js lost its config placeholder")

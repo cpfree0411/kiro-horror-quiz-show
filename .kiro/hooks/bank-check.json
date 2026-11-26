@@ -1,0 +1,38 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Question bank check",
+      "trigger": "PostFileSave",
+      "description": "When a bank file, a media file or the content code is saved, validate every bank in banks/ with scripts/check_bank.sh (limits, answer-in-category scan, aliases, files). Prints ERROR lines and fails on any.",
+      "matcher": "(^|/)banks/[^/]+\\.json$|(^|/)media/|(^|/)server/khqs/content/",
+      "action": {
+        "type": "command",
+        "command": "scripts/check_banks.sh",
+        "timeout": 30
+      }
+    },
+    {
+      "name": "Question bank check (create)",
+      "trigger": "PostFileCreate",
+      "description": "When a bank file, a media file or the content code is saved, validate every bank in banks/ with scripts/check_bank.sh (limits, answer-in-category scan, aliases, files). Prints ERROR lines and fails on any.",
+      "matcher": "(^|/)banks/[^/]+\\.json$|(^|/)media/|(^|/)server/khqs/content/",
+      "action": {
+        "type": "command",
+        "command": "scripts/check_banks.sh",
+        "timeout": 30
+      }
+    },
+    {
+      "name": "Question bank check (delete)",
+      "trigger": "PostFileDelete",
+      "description": "When a bank file, a media file or the content code is saved, validate every bank in banks/ with scripts/check_bank.sh (limits, answer-in-category scan, aliases, files). Prints ERROR lines and fails on any.",
+      "matcher": "(^|/)banks/[^/]+\\.json$|(^|/)media/|(^|/)server/khqs/content/",
+      "action": {
+        "type": "command",
+        "command": "scripts/check_banks.sh",
+        "timeout": 30
+      }
+    }
+  ]
+}

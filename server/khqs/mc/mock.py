@@ -50,6 +50,9 @@ class MockMc:
         self._utterance = 0
         self.log: list[tuple[str, str]] = []  # (cue, line), for tests
 
+    def engine_flags(self) -> dict:
+        return {"mc_enabled": True, "voice_input": False, "status_from_playback": False}
+
     def duration_ms(self, cue: str, facts: dict, line: str) -> float:
         basis = facts.get("text") if cue in ("read_buzzer", "read_ox", "read_final") and facts.get("text") else line
         return min(MAX_MS, max(MIN_MS, PER_CHAR_MS * len(basis))) / self.speed

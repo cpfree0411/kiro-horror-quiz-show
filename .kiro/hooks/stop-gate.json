@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "End-of-turn gate",
+      "trigger": "Stop",
+      "description": "When the agent ends its turn, run the manifest check, the bank checks and the quick tests. On failure exit 1 with the reason on stderr, which keeps the agent working to fix it (a Stop hook can do this once per turn).",
+      "action": {
+        "type": "command",
+        "command": "scripts/check_all_quick.sh",
+        "timeout": 90
+      }
+    }
+  ]
+}

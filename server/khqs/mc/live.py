@@ -149,6 +149,7 @@ class LiveMc:
             except Exception:  # noqa: BLE001
                 pass
         self.host.run(self.host.engine.mc_offline)
+        self.host.live_stopped()
 
     def cancel_all(self) -> None:
         """New game or forced reset: forget everything queued (tokens belong to the old engine)."""

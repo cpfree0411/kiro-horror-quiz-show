@@ -15,3 +15,5 @@ Chosen in P0 (see `.kiro/specs/p0-bootstrap/design.md`). The handoff leaves the 
 - **Dev environment on the owner's host:** the venv lives outside the repo at `/srv/workdata/projects/.venvs/kiro-horror-quiz-show`. Cache locations are passed per tool (`uv --cache-dir`, `pytest -o cache_dir`, `PLAYWRIGHT_BROWSERS_PATH` inside `scripts/test.sh`), never set as global environment overrides. Use `scripts/setup_dev.sh` and `scripts/test.sh`.
 - **Frozen files:** run Python with `-B` or `PYTHONDONTWRITEBYTECODE=1` so no `__pycache__` appears under `interface/` (the manifest test treats any extra file there as a violation).
 - **Validation:** every outgoing stage message is checked with `interface/tools/validate.py::check_engine_message` in tests.
+- **Public demo mode (P6):** `KHQS_PUBLIC=1` with `KHQS_PUBLIC_HOST` and an operator secret; guards live in `server/khqs/server/guards.py`; see `docs/PUBLIC_DEMO.md`. Live MC and operator actions stay local-only.
+- **Hooks (P6):** `.kiro/hooks/` run `scripts/check_manifest.sh`, `scripts/check_banks.sh` and `scripts/test_quick.sh` (about 10 s). The full suite (`scripts/test.sh`, about 2.5 min) stays on demand.

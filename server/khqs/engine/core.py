@@ -627,8 +627,16 @@ class Engine:
         self._check()
 
     def mc_online(self, voice_input: bool = True) -> None:
+        """The live MC is connected: it speaks and listens, and `speaking` follows real playback."""
         self.mc_enabled = True
         self.voice_input = voice_input
+        self.status_from_playback = True
+
+    def mc_mock(self) -> None:
+        """Back to the mock MC (public mode, after the live MC stopped): lines are timed, nothing is heard."""
+        self.mc_enabled = True
+        self.voice_input = False
+        self.status_from_playback = False
 
     def mc_voice_answer(self, listen_id: str, heard: str, recognition: str, voiced: bool) -> bool:
         r = self.round

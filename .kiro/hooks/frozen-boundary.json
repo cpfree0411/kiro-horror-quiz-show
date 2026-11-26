@@ -1,0 +1,38 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Frozen boundary check",
+      "trigger": "PostFileSave",
+      "description": "When anything under stage/ or interface/ or MANIFEST.sha256 is saved, created or deleted, run sha256sum -c MANIFEST.sha256 plus a check for files that are not in the manifest. Fails loudly: the stage and the protocol are frozen.",
+      "matcher": "(^|/)(stage|interface)/|(^|/)MANIFEST\\.sha256$",
+      "action": {
+        "type": "command",
+        "command": "scripts/check_manifest.sh",
+        "timeout": 30
+      }
+    },
+    {
+      "name": "Frozen boundary check (create)",
+      "trigger": "PostFileCreate",
+      "description": "When anything under stage/ or interface/ or MANIFEST.sha256 is saved, created or deleted, run sha256sum -c MANIFEST.sha256 plus a check for files that are not in the manifest. Fails loudly: the stage and the protocol are frozen.",
+      "matcher": "(^|/)(stage|interface)/|(^|/)MANIFEST\\.sha256$",
+      "action": {
+        "type": "command",
+        "command": "scripts/check_manifest.sh",
+        "timeout": 30
+      }
+    },
+    {
+      "name": "Frozen boundary check (delete)",
+      "trigger": "PostFileDelete",
+      "description": "When anything under stage/ or interface/ or MANIFEST.sha256 is saved, created or deleted, run sha256sum -c MANIFEST.sha256 plus a check for files that are not in the manifest. Fails loudly: the stage and the protocol are frozen.",
+      "matcher": "(^|/)(stage|interface)/|(^|/)MANIFEST\\.sha256$",
+      "action": {
+        "type": "command",
+        "command": "scripts/check_manifest.sh",
+        "timeout": 30
+      }
+    }
+  ]
+}

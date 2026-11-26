@@ -80,11 +80,11 @@
     if (capCtx.state === 'suspended') await capCtx.resume();
   }
 
-  function openSocket() {
+  function openSocket(secret) {
     return new Promise((resolve, reject) => {
       const s = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/mc`);
       const timer = setTimeout(() => reject(new Error('MC OFFLINE — TRY AGAIN')), 5000);
-      s.onopen = () => { clearTimeout(timer); ws = s; resolve(); };
+      s.onopen = () => { clearTimeout(timer); ws = s; if (secret) s.send(JSON.stringify({ t: 'hello', secret })); resolve(); };
       s.onerror = () => { clearTimeout(timer); reject(new Error('MC OFFLINE — TRY AGAIN')); };
       s.onmessage = e => {
         let m; try { m = JSON.parse(e.data); } catch (x) { return; }
@@ -99,11 +99,11 @@
 
   window.KHQS_McAudio = {
     /* Mic permission first (MIC NEEDED), then the audio socket (MC OFFLINE). */
-    async connect() {
+    async connect(secret) {
       if (ws && ws.readyState === 1 && stream) { window.KHQS_HOST = host; return; }
       try { ensureOut(); } catch (e) { throw new Error('MC OFFLINE — TRY AGAIN'); }
       if (!stream) { try { await startCapture(); } catch (e) { throw new Error('MIC NEEDED'); } }
-      await openSocket();
+      await openSocket(secret);
       window.KHQS_HOST = host;
       M.state = 'open';
     },
