@@ -34,7 +34,7 @@ Source: the owner's live-voice play test ("nearly perfect") and the P7 prompt. I
 | G2 | The requester then answers at once, still holding the buzzer, with the normal answer window. Right is +20 as usual. Wrong locks the requester out as usual. After that the round goes on as today (buzzers reopen for the others, or the ladder continues). |
 | G3 | Refused: the MC teases briefly ("Denied! You're on your own."). The requester must answer now, without a hint, with the normal answer window and the normal rules. |
 | G4 | At most three spoken hints per music question (clue 1, clue 2, composer). A request after that gets "No hints left!" and the player must answer. |
-| G5 | Each player may ask once per music question. A refused request counts as asked, but not as a hint given. A second request gets the "no hints" line, then the player must answer; a further hint phrase in that window is simply an answer. |
+| G5 | Each player may ask once per music question. A refused request counts as asked, but not as a hint given. A second request by the same player gets "One hint per player!" (owner's answer after P7; "No hints left!" stays for the case where all three are out), then the player must answer; a further hint phrase in that window is simply an answer. |
 
 ## 5. Privacy
 | # | Requirement |

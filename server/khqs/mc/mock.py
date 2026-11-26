@@ -34,7 +34,7 @@ def line_for(cue: str, f: dict) -> str:
         "hint_ask": lambda: f"Ooh, {f['name']} wants a hint! Do the others agree?",
         "hint_grant": lambda: _grant_line(f),
         "hint_refused": lambda: "Denied! You're on your own.",
-        "hint_none": lambda: "No hints left!",
+        "hint_none": lambda: "No hints left!" if f["why"] == "none_left" else "One hint per player!",
         "suspense": lambda: "And the answer is...",
         "ask_reason": lambda: f"{f['name']}, why did you pick {f['choice']}?",
         "offer_switch": lambda: f"{f['name']}, would you like to switch from {f['choice']}?",

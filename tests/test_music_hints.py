@@ -353,6 +353,13 @@ def test_asking_again_at_a_later_level_is_still_once_per_question():
     assert sim.eng.phone_view(0)["screen"] == "answer_voice" and sim.eng.phone_view(0)["own"]["canHint"] is False
     say(sim, 0, "hint")
     assert cues(sim, "hint_none")[-1][1]["why"] == "used"
+    from khqs.mc import mock, prompts
+    assert mock.line_for("hint_none", {"name": "Mina", "why": "used"}) == "One hint per player!"
+    assert mock.line_for("hint_none", {"name": "Mina", "why": "none_left"}) == "No hints left!"
+    used = prompts.turn_for("hint_none", {"name": "Mina", "why": "used"})
+    assert 'Say "One hint per player!"' in used and "No hints left" not in used
+    left = prompts.turn_for("hint_none", {"name": "Mina", "why": "none_left"})
+    assert 'Say "No hints left!"' in left and "One hint per player" not in left
 
 
 def test_an_answer_that_also_says_hint_is_judged_as_an_answer():

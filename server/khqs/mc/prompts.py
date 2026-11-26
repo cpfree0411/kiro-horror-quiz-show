@@ -66,8 +66,9 @@ def turn_for(cue: str, f: dict) -> str:
         "hint_refused": lambda: (f"[CUE hint_refused] The others said no to {c(f['name'], 24)}'s hint. Tease them in one short line, "
                                  f"for example \"Denied! You're on your own.\" Give no hint."),
         "hint_none": lambda: (f"[CUE hint_none] {c(f['name'], 24)} asked for a hint, but "
-                              + ("all the hints are already used" if f["why"] == "none_left" else "they already had their turn to ask")
-                              + ". Say \"No hints left!\" in a few playful words and tell them to answer now. Give no hint."),
+                              + ("all the hints are already used. Say \"No hints left!\"" if f["why"] == "none_left"
+                                 else "they already had their turn to ask. Say \"One hint per player!\"")
+                              + " in a few playful words and tell them to answer now. Give no hint."),
         "suspense": lambda: "[CUE suspense] Build suspense for the answer in one short line. Do not say or hint at the answer.",
         "ask_reason": lambda: f"[CUE ask_reason] {c(f['name'], 24)} picked {_side(f['choice'])}. Ask them, in one short question, why they picked it.",
         "offer_switch": lambda: f"[CUE offer_switch] Offer {c(f['name'], 24)} the chance to switch from {_side(f['choice'])} to the other side. "
