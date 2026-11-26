@@ -26,7 +26,7 @@ Everything under `server/`, `tests/`, `scripts/`, `docs/` other than `HANDOFF.md
 | P3 | `f2e323a` | Gemini Live MC, browser audio host, bank format and loader, English-only scope, collapsible pad |
 | P4 | `c9aaa01` | Not Kiro's: English question bank and its tests |
 | P6 | `a11d210` | Public demo mode, soak and leak fixes, hooks, docs |
-| P7 | P7COMMIT | Spoken hints on request in the music question (consent, `composer` in the bank format), worst-case timing script |
+| P7 | `a250331` | Spoken hints on request in the music question (consent, `composer` in the bank format), worst-case timing script |
 
 P5 (packaging the submission) is not done.
 
