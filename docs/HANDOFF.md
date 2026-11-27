@@ -193,7 +193,7 @@ Question music (`media/`, 30 s excerpts, tags stripped, served only by opaque id
 ## 10. Submission honesty (README disclosure)
 
 The README must say plainly:
-- **Made before Kiro, by the project owner with other AI tools:** stage visuals and animation, art, sound design and cues, the `khqs.stage/1` protocol and its scenarios, and an earlier private prototype whose lessons are written into `docs/`.
+- **Made before the Kiro phase, during the hackathon's submission period (from October 30, 2026), by the project owner with other AI tools:** stage visuals and animation, art, sound design and cues, the `khqs.stage/1` protocol and its scenarios, and a private prototype built earlier in the hackathon, whose lessons are written into `docs/`.
 - **Made with Kiro in this repo:** the engine, server, connector, MC integration, phone UI, question bank, tests and docs Kiro wrote (with links to `.kiro/specs` and steering).
 - Third-party audio credits (§9).
 

@@ -6,10 +6,10 @@ A kitschy, cute Halloween quiz show in the browser. A ghost MC hosts, one to thr
 
 ## What was made before Kiro, with Kiro, and alongside Kiro
 
-**Made before Kiro, by the project owner with other AI tools** (Claude Code for stage code, ChatGPT image editing for art plates, Gemini for some music, sound effects from Pixabay):
+**Made before the Kiro phase, during the hackathon's submission period (from October 30, 2026), by the project owner with other AI tools** (Claude Code for stage code, ChatGPT image editing for art plates, Gemini for some music, sound effects from Pixabay):
 - the stage (`stage/`): visuals, animation, art, sound design and cues
 - the `khqs.stage/1` protocol, its schema, scenarios and validator (`interface/`)
-- an earlier private prototype whose lessons are written into `docs/`
+- a private prototype built earlier in the hackathon, whose lessons are written into `docs/`
 
 **Made with Kiro in this repo (P0 to P3, P6 and P7):** the engine, server, connector, mock MC, Gemini Live MC, phone UI, the question bank format and loader, the public demo mode and its guards, the soak and leak checks, the Kiro hooks, spoken hints in the music question, tests and docs written after the handoff. How Kiro was used, phase by phase, is in [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md). Specs and steering are in [`.kiro/specs`](.kiro/specs) and [`.kiro/steering`](.kiro/steering).
 
