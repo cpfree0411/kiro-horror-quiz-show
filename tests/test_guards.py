@@ -115,3 +115,12 @@ def test_env_for_public_mode_reads_the_secret_file_without_keeping_it_in_the_rep
     assert "a-long-operator" not in repr(s) and "a-long-operator" not in str(s)
     with pytest.raises(SettingsError):
         Settings.from_env({"KHQS_PUBLIC": "1", "KHQS_PUBLIC_HOST": "demo.example.com"})
+
+
+def test_public_restart_stale_setting():
+    env = {"KHQS_PUBLIC": "1", "KHQS_PUBLIC_HOST": "demo.example.com", "KHQS_OPERATOR_SECRET": "x" * 16}
+    assert Settings.from_env(env).restart_stale_s == 60
+    assert Settings.from_env({**env, "KHQS_PUBLIC_RESTART_STALE_S": "90"}).restart_stale_s == 90
+    for value in ("0", "-1", "soon"):
+        with pytest.raises(SettingsError, match="KHQS_PUBLIC_RESTART_STALE_S"):
+            Settings.from_env({**env, "KHQS_PUBLIC_RESTART_STALE_S": value})

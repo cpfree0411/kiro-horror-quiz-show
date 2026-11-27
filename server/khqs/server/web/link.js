@@ -73,7 +73,7 @@
       this.deliver = deliver; this.log = log || (() => {});
       this.speed = 1; this.paused = false; this.run = 0; this.scenario = null; this.waiters = [];
       this.queue = []; this.ws = null; this.last = null; this.hadOpen = false; this.beats = {}; this.gates = {};
-      this.rt = null; this.pt = null;
+      this.rt = null; this.pt = null; this.awaitingRole = false;
       live.engine = this;
     }
     load(s) { this.scenario = s; }
@@ -87,7 +87,8 @@
     }
     receive(msg) {
       this.log('in', msg);
-      if (live.role !== 'primary' && /^stage\.(beat_done|media_)/.test(msg.type)) return;   // a viewer never answers gates
+      // The reconnect snapshot can carry a gate before the role update. The server checks its ack against the new role.
+      if (!this.awaitingRole && live.role !== 'primary' && /^stage\.(beat_done|media_)/.test(msg.type)) return;
       if (msg.type === 'stage.beat_done') {
         const g = this.gates[msg.data.gate];
         if (g) { this.beats[g.type] = Math.round(performance.now() - g.t); delete this.gates[msg.data.gate]; }
@@ -102,10 +103,12 @@
       clearTimeout(this.rt);
       const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/stage?cid=${encodeURIComponent(cid)}${take ? '&take=1' : ''}`;
       const ws = new WebSocket(url);
-      this.ws = ws; live.status = 'connecting'; chipUpdate();
+      this.ws = ws; live.status = 'connecting'; restartable = false; chipUpdate();
       ws.onopen = () => {
         if (this.ws !== ws) return;
-        live.status = 'online'; live.role = 'primary';
+        live.status = 'online';
+        this.awaitingRole = !CFG.operator;
+        if (CFG.operator) live.role = 'primary';
         if (take && takeSecret) ws.send(JSON.stringify({ type: 'khqs.operator', secret: takeSecret }));  // before the hello, never in the URL
         ws.send(JSON.stringify({ proto: PROTO, type: 'stage.hello', data: { role: 'primary', stageVersion: 'khqs-live-0.1', lastSseq: this.last, clientTime: performance.now(), beats: this.beats } }));
         if (this.hadOpen) this.queue = []; // acks queued while offline refer to gates that are gone; the snapshot re-acks
@@ -115,7 +118,10 @@
         this.pt = setInterval(() => this.out({ proto: PROTO, type: 'stage.ping', data: { clientTime: performance.now() } }), 10000);
         chipUpdate();
       };
-      ws.onmessage = e => { try { this.onWire(JSON.parse(e.data)); } catch (err) { console.error(err); } };
+      ws.onmessage = e => {
+        if (this.ws !== ws) return;
+        try { this.onWire(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      };
       ws.onclose = () => {
         if (this.ws !== ws) return;
         clearInterval(this.pt); live.status = 'offline'; chipUpdate();
@@ -124,6 +130,13 @@
     }
     onWire(msg) {
       if (msg.type === 'pong') return;
+      if (msg.type === 'khqs.stage_state') {
+        this.awaitingRole = false;
+        live.role = msg.role;
+        restartable = msg.restartable;
+        chipUpdate();
+        return;
+      }
       if (msg.type === 'error') {
         this.log('in', msg);
         if (msg.data && msg.data.code === 'primary_taken') { live.role = 'viewer'; chipUpdate(); }
@@ -212,8 +225,14 @@
   }
   if (CFG.liveVoice) setInterval(mcPoll, 2000);
 
-  // ---- operator chip and the screen pad (outside the stage's own DOM)
+  // ---- connection chip and the screen pad (outside the stage's own DOM)
   let chip = null, padBox = null;
+  let restartButton = null, restartable = false, restartConfirm = null;
+  function disarmRestart() {
+    clearTimeout(restartConfirm);
+    restartConfirm = null;
+    if (restartButton) restartButton.textContent = 'RESTART';
+  }
   function pads() { try { return JSON.parse(sessionStorage.getItem('khqs.pads') || '{}'); } catch (e) { return {}; } }
   function padAdd(seat, name, cred) {
     const p = pads(); p[seat] = { name };
@@ -223,6 +242,7 @@
   let padGame = null;
   function padClear(gameId) {
     if (padGame && padGame !== gameId) {
+      disarmRestart();
       const p = pads();
       Object.keys(p).forEach(s => sessionStorage.removeItem('khqs.pad.' + s));
       sessionStorage.removeItem('khqs.pads');
@@ -272,6 +292,10 @@
     if (mcre) mcre.style.display = CFG.liveVoice && mcInfo.state === 'offline' ? '' : 'none';
     const take = chip.querySelector('.take');
     if (take) take.style.display = live.role === 'viewer' ? '' : 'none';
+    if (restartButton) {
+      restartButton.hidden = live.status !== 'online' || !restartable;
+      if (restartButton.hidden && restartConfirm !== null) disarmRestart();
+    }
     padRender();
   }
   function buildChrome() {
@@ -300,7 +324,34 @@
       if (CFG.secretRequired && !s) return;
       live.engine.ws && live.engine.ws.close(); clearTimeout(live.engine.rt); live.engine.open(true, s);
     };
-    if (!CFG.operator) chip.querySelectorAll('.take, .new, .mcre').forEach(b => b.remove());   // public clients get no operator buttons
+    if (!CFG.operator) {
+      chip.querySelectorAll('.take, .new, .mcre').forEach(b => b.remove());
+      restartButton = document.createElement('button');
+      restartButton.type = 'button';
+      restartButton.className = 'restart';
+      restartButton.textContent = 'RESTART';
+      const feedback = document.createElement('span');
+      feedback.setAttribute('role', 'status');
+      chip.append(restartButton, feedback);
+      let feedbackTimer;
+      restartButton.onclick = async () => {
+        if (restartConfirm === null) {
+          feedback.textContent = '';
+          restartButton.textContent = 'SURE? ↻';
+          restartConfirm = setTimeout(disarmRestart, 3000);
+          return;
+        }
+        disarmRestart();
+        restartButton.disabled = true;
+        const r = await post('/api/restart');
+        restartButton.disabled = false;
+        if (r.error) {
+          feedback.textContent = r.error;
+          clearTimeout(feedbackTimer);
+          feedbackTimer = setTimeout(() => { feedback.textContent = ''; }, 6000);
+        }
+      };
+    }
     if (chip.querySelector('.mcre')) chip.querySelector('.mcre').onclick = async () => { const m = await ensureMc(); if (m) alert(m); mcPoll(); };
     if (chip.querySelector('.new')) chip.querySelector('.new').onclick = () => { if (confirm('Start a new show now? The current game will be lost.')) KHQS_ENTRY.reset(true); };
     chipUpdate(); padRender();

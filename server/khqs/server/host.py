@@ -6,7 +6,7 @@ import json
 import logging
 import random
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from ..clock import Clock, SystemClock
 from ..content.model import ContentBank
@@ -22,6 +22,13 @@ from .settings import Settings
 
 log = logging.getLogger("khqs.server")
 QUEUE_MAX = 200
+RESTART_RECONNECT_GRACE_MS = 10_000
+
+
+@dataclass
+class RestartReservation:
+    identity: tuple[str, str]
+    expires_at_ms: int | None = None  # the grace starts when the handoff primary disconnects
 
 
 class Conn:
@@ -38,6 +45,7 @@ class Conn:
         self.conn_id = ""
         self.role = "viewer"
         self.cid = ""
+        self.stage_state: tuple[str, bool] | None = None
         # phone
         self.seat: int | None = None
 
@@ -95,6 +103,7 @@ class GameHost:
                                self.mc_port) if settings.mc == "live" else None)
         self.last_input = self.clock.now_ms()
         self.game_started_at = self.last_input
+        self.restart_primary: RestartReservation | None = None
         self._caps_task: asyncio.Task | None = None
         self.caps_interval = 1.0
         self.stats_providers: list = []  # callables returning dicts (guard table sizes), for process_stats
@@ -133,6 +142,28 @@ class GameHost:
         c = self.stage.get(self.engine.primary) if self.engine.primary else None
         return c.cid if c else None
 
+    def public_stage(self, cid: str | None) -> Conn | None:
+        if not cid:
+            return None
+        matches = [c for c in self.stage.values() if c.klass == "public" and c.cid == cid and not c.closed]
+        return matches[0] if len(matches) == 1 else None
+
+    def restartable(self, sock: Conn) -> bool:
+        e = self.engine
+        if sock.conn_id == e.primary:
+            return e.phase != "lobby" or bool(e.players)
+        return e.phase == "lobby" or self.clock.now_ms() - self.last_input >= self.settings.restart_stale_s * 1000
+
+    def _publish_stage_state(self) -> None:
+        # Connector state travels alongside the stage stream without changing the frozen protocol.
+        for c in self.stage.values():
+            role = "primary" if c.conn_id == self.engine.primary else "viewer"
+            available = c.klass == "public" and not self.private_show and self.public_stage(c.cid) is c and self.restartable(c)
+            state = (role, available)
+            if state != c.stage_state:
+                c.send({"type": "khqs.stage_state", "role": state[0], "restartable": state[1]})
+                c.stage_state = state
+
     def has_public_clients(self) -> bool:
         return any(c.klass == "public" for c in [*self.stage.values(), *[x for cs in self.phones.values() for x in cs]])
 
@@ -147,6 +178,7 @@ class GameHost:
         while True:
             await asyncio.sleep(self.caps_interval)
             now = self.clock.now_ms()
+            self._expire_restart_primary(now)
             e = self.engine
             if not e.players and e.phase == "lobby":
                 continue
@@ -156,6 +188,8 @@ class GameHost:
             elif e.players and now - self.last_input >= s.idle_reset_s * 1000:
                 log.warning("idle reset phase=%s players=%d", e.phase, len(e.players))
                 self.reset(force=True)
+            else:
+                self._publish_stage_state()  # RESTART can become available while the engine is idle
 
     async def stop(self) -> None:
         if self.live_mc is not None:
@@ -203,6 +237,8 @@ class GameHost:
                 self._dispatch(e)
         if self.recorder:
             self.recorder.observe()
+        if self.settings.public:
+            self._publish_stage_state()
 
     def _dispatch(self, e) -> None:
         if isinstance(e, StageBroadcast):
@@ -237,8 +273,18 @@ class GameHost:
         self._n_conn += 1
         return f"s{self._n_conn}"
 
+    def _expire_restart_primary(self, now_ms: int) -> None:
+        reservation = self.restart_primary
+        if reservation is not None and reservation.expires_at_ms is not None and now_ms >= reservation.expires_at_ms:
+            self.restart_primary = None
+
     def stage_hello(self, sock: Conn, role: str, last_sseq, cid: str, take: bool) -> str:
         eng = self.engine
+        self._expire_restart_primary(self.clock.now_ms())
+        if take and role == "primary":
+            self.restart_primary = None
+        elif self.restart_primary is not None and (sock.klass, cid) != self.restart_primary.identity:
+            role = "viewer"
         if role == "primary" and eng.primary is not None and eng.primary != sock.conn_id:
             old = self.stage.get(eng.primary)
             if old is not None and (take or (cid and old.cid == cid)):
@@ -246,18 +292,26 @@ class GameHost:
         sock.cid = cid
         self.stage[sock.conn_id] = sock
         sock.role = self.run(eng.stage_hello, sock.conn_id, role, last_sseq)
+        if sock.role == "primary":  # any active reservation matched this hello
+            self.restart_primary = None
         return sock.role
+
+    def _disconnect_stage(self, sock: Conn) -> None:
+        reservation = self.restart_primary
+        if (reservation is not None and sock.conn_id == self.engine.primary
+                and (sock.klass, sock.cid) == reservation.identity):
+            reservation.expires_at_ms = self.clock.now_ms() + RESTART_RECONNECT_GRACE_MS
+        del self.stage[sock.conn_id]
+        self.engine.stage_disconnect(sock.conn_id)
 
     def drop_stage(self, sock: Conn, code: int = 1000) -> None:
         if self.stage.get(sock.conn_id) is sock:
-            del self.stage[sock.conn_id]
-            self.engine.stage_disconnect(sock.conn_id)
+            self._disconnect_stage(sock)
         sock.close(code)
 
     def stage_closed(self, sock: Conn) -> None:
         if self.stage.get(sock.conn_id) is sock:
-            self.run(self.engine.stage_disconnect, sock.conn_id)
-            self.stage.pop(sock.conn_id, None)
+            self.run(self._disconnect_stage, sock)
 
     # ------------------------------------------------------------------ phone sockets
     def phone_hello(self, sock: Conn, credential: str) -> bool:
@@ -321,7 +375,17 @@ class GameHost:
         self.touch_input()
         return self.run(self.engine.start)
 
-    def reset(self, force: bool = False) -> Result:
+    def restart(self, sock: Conn) -> Result:
+        primary = sock.conn_id == self.engine.primary
+        if not self.restartable(sock):
+            return Result(False, "LOBBY IS ALREADY EMPTY" if primary else "SHOW IN PROGRESS — TRY AGAIN SOON")
+        log.info("public restart by=%s phase=%s players=%d", "primary" if primary else "viewer",
+                 self.engine.phase, len(self.engine.players))
+        if primary:
+            return self.reset(force=True)
+        return self.reset(force=True, new_primary=sock.conn_id)
+
+    def reset(self, force: bool = False, *, new_primary: str | None = None) -> Result:
         if not force and self.engine.phase != "ended":
             return Result(False, "SHOW IS STILL RUNNING")
         self.mock_mc.cancel_all()
@@ -329,6 +393,12 @@ class GameHost:
             self.live_mc.cancel_all()
         self.touch_input()
         roles = self.engine.stage_roles()
+        self.restart_primary = None
+        if new_primary is not None:
+            roles.pop(new_primary)
+            roles = {new_primary: "primary", **dict.fromkeys(roles, "viewer")}
+            sock = self.stage[new_primary]
+            self.restart_primary = RestartReservation((sock.klass, sock.cid))
         for seat, socks in list(self.phones.items()):
             for c in socks:
                 c.send({"type": "gone"})
@@ -343,5 +413,6 @@ class GameHost:
                 self.stage[conn].role = self.engine.stage_hello(conn, role, None)
         self.flush()
         self.poke()
-        log.info("new game index=%d", self.game_index)
+        if not self.settings.public:
+            log.info("new game index=%d", self.game_index)
         return Result(True)

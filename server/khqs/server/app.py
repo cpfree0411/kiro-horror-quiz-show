@@ -34,7 +34,7 @@ LAN = "lan"
 # Route tables, used by the apps and by the port-split test.
 PHONE_PATHS = ("/ticket.html", "/phone", "/phone/phone.css", "/phone/phone.js", "/play/ticket-hook.js", "/api/join", "/ws/phone")
 STAGE_ONLY_PATHS = ("/", "/index.html", "/stage.js", "/assets/manifest.js", "/play/link.js", "/play/mc-audio.js", "/stage/assets/a-3f9c1d2e7b40",
-                    "/api/start", "/api/reset", "/api/mc/connect", "/api/mc/disconnect", "/api/mc/status", "/ws/stage", "/ws/mc")
+                    "/api/start", "/api/reset", "/api/restart", "/api/mc/connect", "/api/mc/disconnect", "/api/mc/status", "/ws/stage", "/ws/mc")
 
 
 def same_origin(headers) -> bool:
@@ -284,6 +284,20 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         r = host.reset(force)
         return JSONResponse({"ok": True} if r.ok else {"error": r.error})
 
+    async def api_restart(request: Request):
+        k, _, err = admit(request, lim_act)
+        if err is not None:
+            return err
+        if k != guards.PUBLIC:
+            return JSONResponse({"error": "NOT FOUND"}, status_code=404)
+        if request.headers.get("x-khqs") != "1" or not same_origin(request.headers):
+            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+        sock = host.public_stage(request.headers.get("x-khqs-cid"))
+        if sock is None:
+            return JSONResponse({"error": "STAGE CONNECTION REQUIRED"}, status_code=403)
+        r = host.restart(sock)
+        return JSONResponse({"ok": True}) if r.ok else JSONResponse({"error": r.error}, status_code=409)
+
     async def api_mc_connect(request: Request):
         err = operator(request)
         if err is not None:
@@ -445,6 +459,7 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         Route("/stage/assets/{asset_id}", stage_media),
         Route("/api/start", api_start, methods=["POST"]),
         Route("/api/reset", api_reset, methods=["POST"]),
+        Route("/api/restart", api_restart, methods=["POST"]),
         Route("/api/mc/connect", api_mc_connect, methods=["POST"]),
         Route("/api/mc/disconnect", api_mc_disconnect, methods=["POST"]),
         Route("/api/mc/status", api_mc_status),

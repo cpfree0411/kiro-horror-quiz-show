@@ -12,6 +12,8 @@ import pytest
 from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidStatus
 from websockets.sync.client import connect
 
+from khqs.clock import FakeClock
+from khqs.server.host import GameHost
 from khqs.server.runner import RunningServer
 from live_rig import FakeTransport
 from net import get, hello, post
@@ -26,6 +28,15 @@ TUNNEL = {"Host": HOST, "CF-Connecting-IP": "203.0.113.5", "X-Forwarded-For": "2
 def pub():
     srv = RunningServer(make_settings(public=True, public_host=HOST, operator_secret=SECRET, join_grace_s=60.0)).start()
     yield srv
+    srv.stop()
+
+
+@pytest.fixture
+def restart_demo(request):
+    clock = FakeClock()
+    settings = make_settings(public=True, public_host=HOST, operator_secret=SECRET, **getattr(request, "param", {}))
+    srv = RunningServer(settings, lambda s, bank: GameHost(s, bank, clock)).start()
+    yield srv, clock
     srv.stop()
 
 
@@ -190,6 +201,7 @@ def test_live_mc_only_from_local_with_secret_and_the_show_turns_private():
             # the private show: strangers are turned away everywhere
             assert get(b + "/", tunnel())[0] == 503 and get(b + "/ticket.html", tunnel())[0] == 503
             assert post(b + "/api/join", {"name": "Stranger"}, tunnel())[0] == 503
+            assert post(b + "/api/restart", {}, tunnel())[0] == 503
             with pytest.raises((InvalidStatus, InvalidHandshake, ConnectionClosed)):
                 with pws(srv, "/ws/stage?cid=late") as ws:
                     ws.send(hello()); ws.recv(timeout=2)
@@ -231,6 +243,220 @@ def test_only_the_primary_stage_page_can_start_or_reset(pub):
         assert post(b + "/api/start", {}, tunnel(**{"X-KHQS-Cid": "main"}))[1] == {"ok": True}
         assert post(b + "/api/reset", {}, tunnel(**{"X-KHQS-Cid": "main"}))[1] == {"error": "SHOW IS STILL RUNNING"}  # one game at a time
     assert pub.host.game_index == 0
+
+
+# ---------------------------------------------------------------- public restart
+def action_headers(cid, ip="203.0.113.5", **extra):
+    return tunnel(ip, **{"X-KHQS-Cid": cid, **extra})
+
+
+def stage_state(ws):
+    end = time.monotonic() + 3
+    while time.monotonic() < end:
+        msg = json.loads(ws.recv(timeout=max(0, end - time.monotonic())))
+        if msg["type"] == "khqs.stage_state":
+            return msg["role"], msg["restartable"]
+    pytest.fail("no stage state received")
+
+
+def lobby_game(ws):
+    end = time.monotonic() + 3
+    while time.monotonic() < end:
+        msg = json.loads(ws.recv(timeout=max(0, end - time.monotonic())))
+        if msg["type"] == "snapshot" and msg["data"]["game"]["phase"] == "lobby":
+            return msg["data"]["game"]["id"]
+    pytest.fail("no lobby snapshot received")
+
+
+def wait_for_primary_disconnect(srv):
+    end = time.monotonic() + 2
+    while srv.host.engine.primary is not None and time.monotonic() < end:
+        time.sleep(0.01)
+    assert srv.host.engine.primary is None
+
+
+def test_public_primary_can_restart_midgame(restart_demo, caplog):
+    srv, _ = restart_demo
+    b = base(srv)
+    h = action_headers("main")
+    caplog.set_level(logging.INFO, logger="khqs.server")
+    with pws(srv, "/ws/stage?cid=main") as main:
+        main.send(hello())
+        original = lobby_game(main)
+        assert stage_state(main) == ("primary", False)
+        assert post(b + "/api/restart", {}, h) == (409, {"error": "LOBBY IS ALREADY EMPTY"})
+        assert post(b + "/api/join", {"name": "Mina"}, h)[1]["ok"]
+        assert stage_state(main) == ("primary", True)
+        assert post(b + "/api/start", {}, h)[1]["ok"] and srv.host.engine.phase == "opening"
+        assert post(b + "/api/restart", {}, h) == (200, {"ok": True})
+        assert lobby_game(main) != original
+        assert stage_state(main) == ("primary", False)
+        assert srv.host.primary_cid() == "main" and not srv.host.engine.players
+        assert "public restart by=primary phase=opening players=1" in caplog.text
+        assert "Mina" not in caplog.text and SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("with_players", [False, True])
+def test_public_viewer_can_restart_a_lobby_and_old_primary_stays_viewer(restart_demo, with_players):
+    pub, clock = restart_demo
+    b = base(pub)
+    if with_players:
+        assert post(b + "/api/join", {"name": "Mina"}, tunnel())[1]["ok"]
+    h = action_headers("judge", "203.0.113.6")
+    with pws(pub, "/ws/stage?cid=old") as old, pws(pub, "/ws/stage?cid=judge", ip="203.0.113.6") as judge:
+        old.send(hello())
+        original = lobby_game(old)
+        assert stage_state(old) == ("primary", with_players)
+        judge.send(hello())
+        assert lobby_game(judge) == original
+        assert stage_state(judge) == ("viewer", True)
+        assert post(b + "/api/restart", {}, h) == (200, {"ok": True})
+        fresh = lobby_game(judge)
+        assert fresh != original and lobby_game(old) == fresh
+        assert stage_state(judge) == ("primary", False)
+        # The old primary could already restart a lobby if it were a viewer.
+        assert stage_state(old) == ("viewer", True)
+        assert pub.host.primary_cid() == "judge" and not pub.host.engine.players
+        clock.advance(10_000)  # time connected does not count toward the reconnect grace
+        old.close()
+        with pws(pub, "/ws/stage?cid=old") as reconnect:
+            reconnect.send(hello())
+            assert lobby_game(reconnect) == fresh
+            assert stage_state(reconnect) == ("viewer", True)
+
+    # The reservation also covers a network gap with no primary connected.
+    wait_for_primary_disconnect(pub)
+    clock.advance(9_999)
+    with pws(pub, "/ws/stage?cid=old") as reconnect:
+        reconnect.send(hello())
+        assert lobby_game(reconnect) == fresh
+        assert stage_state(reconnect) == ("viewer", True)
+        with pws(pub, "/ws/stage?cid=judge", ip="203.0.113.6") as returning_judge:
+            returning_judge.send(hello())
+            assert lobby_game(returning_judge) == fresh
+            assert stage_state(returning_judge) == ("primary", False)
+            assert pub.host.restart_primary is None
+        assert post(b + "/api/restart", {}, action_headers("old")) == (200, {"ok": True})
+        assert lobby_game(reconnect) != fresh
+        assert stage_state(reconnect) == ("primary", False)
+
+
+def test_new_visitor_becomes_primary_after_restart_reservation_expires(restart_demo):
+    srv, clock = restart_demo
+    with pws(srv, "/ws/stage?cid=judge") as judge:
+        judge.send(hello("viewer"))
+        assert stage_state(judge) == ("viewer", True)
+        assert post(base(srv) + "/api/restart", {}, action_headers("judge")) == (200, {"ok": True})
+        assert stage_state(judge) == ("primary", False)
+
+    wait_for_primary_disconnect(srv)
+    clock.advance(10_000)
+    with pws(srv, "/ws/stage?cid=new") as visitor:
+        visitor.send(hello())
+        assert stage_state(visitor) == ("primary", False)
+        assert srv.host.restart_primary is None
+
+
+@pytest.mark.parametrize("restart_demo", [{"game_cap_s": 1}, {"idle_reset_s": 1}], indirect=True, ids=["cap", "idle"])
+def test_automatic_reset_clears_restart_reservation(restart_demo):
+    srv, clock = restart_demo
+    b = base(srv)
+    with pws(srv, "/ws/stage?cid=old") as old:
+        old.send(hello())
+        original = lobby_game(old)
+        assert stage_state(old) == ("primary", False)
+        with pws(srv, "/ws/stage?cid=judge", ip="203.0.113.6") as judge:
+            judge.send(hello())
+            assert stage_state(judge) == ("viewer", True)
+            assert post(b + "/api/restart", {}, action_headers("judge", "203.0.113.6")) == (200, {"ok": True})
+            handoff = lobby_game(old)
+            assert handoff != original and stage_state(judge) == ("primary", False)
+            assert post(b + "/api/join", {"name": "Mina"}, tunnel())[1]["ok"]
+
+        wait_for_primary_disconnect(srv)
+        clock.advance(1_000)  # trigger the reset before the reconnect grace expires
+        assert lobby_game(old) != handoff
+        with pws(srv, "/ws/stage?cid=new") as visitor:
+            visitor.send(hello())
+            assert stage_state(visitor) == ("primary", False)
+            assert srv.host.restart_primary is None
+
+
+def test_public_viewer_restart_requires_a_full_minute_without_input(restart_demo):
+    srv, clock = restart_demo
+    b = base(srv)
+    h = action_headers("judge", "203.0.113.6")
+    cred = post(b + "/api/join", {"name": "Mina"}, tunnel())[1]["credential"]
+    with pws(srv, "/ws/stage?cid=main") as main, pws(srv, "/ws/stage?cid=judge", ip="203.0.113.6") as judge, pws(srv, "/ws/phone") as phone:
+        main.send(hello())
+        original = lobby_game(main)
+        judge.send(hello())
+        assert lobby_game(judge) == original and stage_state(judge) == ("viewer", True)
+        phone.send(json.dumps({"type": "hello", "cred": cred}))
+        assert json.loads(phone.recv(timeout=3))["type"] == "view"
+        assert post(b + "/api/start", {}, action_headers("main"))[1]["ok"]
+        assert stage_state(judge) == ("viewer", False)
+        in_progress = (409, {"error": "SHOW IN PROGRESS — TRY AGAIN SOON"})
+        assert post(b + "/api/restart", {}, h) == in_progress
+        clock.advance(59_999)
+        assert post(b + "/api/restart", {}, h) == in_progress
+        clock.advance(1)
+        assert stage_state(judge) == ("viewer", True)
+
+        phone.send(json.dumps({"type": "action", "id": 1, "action": {"type": "ox", "choice": "O"}}))
+        assert stage_state(judge) == ("viewer", False)
+        assert post(b + "/api/restart", {}, h) == in_progress
+        clock.advance(60_000)
+        assert stage_state(judge) == ("viewer", True)
+        assert post(b + "/api/restart", {}, h) == (200, {"ok": True})
+        assert lobby_game(judge) != original and stage_state(judge) == ("primary", False)
+        assert srv.host.primary_cid() == "judge" and not srv.host.engine.players
+
+
+def test_public_restart_requires_connected_public_cid_origin_and_header(pub):
+    url = base(pub) + "/api/restart"
+    with pws(pub, "/ws/stage?cid=judge") as judge:
+        assert post(url, {}, action_headers("judge")) == (403, {"error": "STAGE CONNECTION REQUIRED"})  # no hello
+        judge.send(hello("viewer"))
+        assert lobby_game(judge) and stage_state(judge) == ("viewer", True)
+        for headers in (tunnel(), action_headers("unknown"), action_headers("judge", Origin="https://evil.example"),
+                        action_headers("judge", **{"X-KHQS": ""})):
+            assert post(url, {}, headers)[0] == 403
+        with pws(pub, "/ws/stage?cid=judge") as duplicate:
+            duplicate.send(hello("viewer"))
+            assert lobby_game(duplicate) and stage_state(duplicate) == ("viewer", False)
+            assert stage_state(judge) == ("viewer", False)
+            assert post(url, {}, action_headers("judge"))[0] == 403
+        assert stage_state(judge) == ("viewer", True)
+    end = time.monotonic() + 2
+    while pub.host.stage and time.monotonic() < end:
+        time.sleep(0.01)
+    assert not pub.host.stage
+    assert post(url, {}, action_headers("judge", "203.0.113.6")) == (403, {"error": "STAGE CONNECTION REQUIRED"})
+    with connect(f"ws://127.0.0.1:{pub.settings.stage_port}/ws/stage?cid=local") as local:
+        local.send(hello())
+        assert lobby_game(local)
+        assert post(url, {}, action_headers("local", "203.0.113.6"))[0] == 403
+    assert pub.host.game_index == 0
+
+
+def test_public_restart_shares_the_start_reset_address_limit(pub):
+    b = base(pub)
+    h = action_headers("judge")
+    with pws(pub, "/ws/stage?cid=judge") as judge:
+        judge.send(hello("viewer"))
+        assert lobby_game(judge)
+        assert post(b + "/api/start", {}, h)[0] == 403
+        assert post(b + "/api/reset", {}, h)[0] == 403
+        assert post(b + "/api/restart", {}, h) == (200, {"ok": True})
+        assert [post(b + "/api/restart", {}, h)[0] for _ in range(4)] == [409, 409, 409, 429]
+
+
+def test_restart_unavailable_locally_and_local_reset_unchanged(server, pub):
+    for srv in (server, pub):
+        assert post(base(srv) + "/api/restart", {}, op())[0] == 404
+        assert post(base(srv) + "/api/reset", {}) == (200, {"error": "SHOW IS STILL RUNNING"})
+        assert post(base(srv) + "/api/reset", {"force": True}, op()) == (200, {"ok": True})
 
 
 # ---------------------------------------------------------------- limits

@@ -15,6 +15,7 @@ A setting that makes the show safe to put behind a tunnel, so people can open a 
 | `KHQS_OPERATOR_SECRET_FILE` or `KHQS_OPERATOR_SECRET` | the operator secret, at least 16 characters. Required. Prefer the file |
 | `KHQS_MC=live` | optional: lets the **owner** start the live MC privately (below). Public visitors always get the mock |
 | `KHQS_PUBLIC_PHONE_URL` | overrides the QR URL (default `https://<host>/ticket.html`) |
+| `KHQS_PUBLIC_RESTART_STALE_S` | seconds without player input before a viewer can restart a running show (positive integer, default 60) |
 
 Startup refuses public mode without a valid host or a secret, with a non-loopback stage listener, and `KHQS_MC=live` without a secret.
 
@@ -35,14 +36,15 @@ A quick tunnel gets a new random host name every run, so `KHQS_PUBLIC_HOST` woul
 | The secret | Never in a page, URL, config, log or error. The operator types it at the moment of use (kept in page memory only; sent as a header, or as the first WebSocket frame). Compared in constant time. 5 wrong tries per minute locks that client for a minute. The log says only `operator secret rejected count=N` |
 | Live MC | Starts only from a local request with the secret, only while no public client is connected and no game has players. While it runs the show is **private**: new public connections get 503 `PRIVATE SHOW IN PROGRESS`. Disconnecting it (or it stopping) returns to the public mock MC |
 | One game | One engine, one primary stage. In public mode `start` and a normal NEW SHOW must come from the primary page (`X-KHQS-Cid`) |
+| Public RESTART | `POST /api/restart` requires `X-KHQS: 1`, same-origin and an `X-KHQS-Cid` that uniquely identifies a connected public stage socket. The primary can restart as soon as someone has joined or the phase leaves the lobby. A viewer can restart from any lobby or after 60 seconds without player input. The chip asks for a second click within 3 seconds. The caller becomes the primary in a fresh lobby and the previous primary stays a viewer on reconnect. A private live-MC show returns 503 |
 | GAME_RULES §11 caps | A public game is reset after 40 minutes, or after 240 s without player input (join, phone action, start, reset). Engine fail-safes cover stalls |
-| Limits per client address | joins 2 per 5 minutes; connection attempts 30 per minute; start/reset 6 per minute; 8 concurrent sockets. Global: 12 stage sockets, 12 phone sockets. Limiter tables are bounded |
+| Limits per client address | joins 2 per 5 minutes; connection attempts 30 per minute; start/reset/restart share 6 per minute; 8 concurrent sockets. Global: 12 stage sockets, 12 phone sockets. Limiter tables are bounded |
 | Origin | Browser requests must be same-origin with the public host; cross-site `Origin` is refused |
 | Headers | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: SAMEORIGIN` on public responses |
 | Logs | phase and player count only; no names, answers, secrets, access log |
 
 ## Known limits
-- Visitors share one show; a stranger who opens the page first is the main screen. Only they can start and restart it. A named tunnel plus Cloudflare Access would let you restrict who can open it.
+- Visitors share one show. Only the main screen can start it. If someone leaves the main screen open in the lobby or abandons a running show, a viewer can use RESTART once it is stalled and become the main screen. A named tunnel plus Cloudflare Access would let you restrict who can open it.
 - Per-address limits use the visitor address the tunnel reports (`CF-Connecting-IP`). Without a tunnel that sets it, everyone looks like one address.
 - The pad panel and phone pages load Google Fonts from the internet, as the stage does.
 - The owner deployed this setup on 2026-11-27 at `https://khqs.dterrarium.uk` (named Cloudflare tunnel, mock MC) and checked it from outside: pages 200, both WebSockets 101, a forced reset 403, and a phone joining and scoring in a real game. Still unverified: abuse beyond what the tests inject.

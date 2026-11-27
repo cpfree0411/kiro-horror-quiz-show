@@ -51,6 +51,7 @@ class Settings:
     operator_secret: str | None = field(default=None, repr=False, compare=False)  # never printed, logged or sent to a page
     game_cap_s: int = 40 * 60  # GAME_RULES section 11, applied to public games
     idle_reset_s: int = 240
+    restart_stale_s: int = 60
     diag: bool = False  # KHQS_DIAG=1 enables GET /api/diag (process and table sizes) for soak runs; local and operator only
     disconnect_grace_s: float = 2.0  # a phone that drops and returns within this time (a reload) is never shown as disconnected
     join_grace_s: float = 10.0  # a joined player with no phone socket by then is shown as disconnected
@@ -77,6 +78,8 @@ class Settings:
                 raise SettingsError("public mode needs KHQS_PUBLIC_HOST: a bare host name (no scheme, port, path or spaces)")
             if not self.operator_secret:
                 raise SettingsError("public mode needs an operator secret (KHQS_OPERATOR_SECRET or KHQS_OPERATOR_SECRET_FILE)")
+            if self.restart_stale_s <= 0:
+                raise SettingsError("KHQS_PUBLIC_RESTART_STALE_S must be positive")
         if self.mc not in ("mock", "live"):
             raise SettingsError("KHQS_MC must be mock or live")
         if self.mc == "live" and not _is_loopback(self.stage_host):
@@ -127,6 +130,11 @@ class Settings:
             kw["public"] = True
         if g("KHQS_PUBLIC_HOST"):
             kw["public_host"] = g("KHQS_PUBLIC_HOST").strip().lower()
+        if g("KHQS_PUBLIC_RESTART_STALE_S"):
+            try:
+                kw["restart_stale_s"] = int(g("KHQS_PUBLIC_RESTART_STALE_S"))
+            except ValueError:
+                raise SettingsError("KHQS_PUBLIC_RESTART_STALE_S must be an integer") from None
         if g("KHQS_OPERATOR_SECRET_FILE"):
             kw["operator_secret"] = Path(g("KHQS_OPERATOR_SECRET_FILE")).expanduser().read_text(encoding="utf-8").strip()
         elif g("KHQS_OPERATOR_SECRET"):
