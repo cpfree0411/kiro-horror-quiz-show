@@ -45,4 +45,4 @@ A quick tunnel gets a new random host name every run, so `KHQS_PUBLIC_HOST` woul
 - Visitors share one show; a stranger who opens the page first is the main screen. Only they can start and restart it. A named tunnel plus Cloudflare Access would let you restrict who can open it.
 - Per-address limits use the visitor address the tunnel reports (`CF-Connecting-IP`). Without a tunnel that sets it, everyone looks like one address.
 - The pad panel and phone pages load Google Fonts from the internet, as the stage does.
-- Unverified in this repo: an actual Cloudflare tunnel (not deployed), real internet latency, and abuse beyond what the tests inject.
+- The owner deployed this setup on 2026-11-27 at `https://khqs.dterrarium.uk` (named Cloudflare tunnel, mock MC) and checked it from outside: pages 200, both WebSockets 101, a forced reset 403, and a phone joining and scoring in a real game. Still unverified: abuse beyond what the tests inject.

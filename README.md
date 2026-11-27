@@ -2,6 +2,8 @@
 
 A kitschy, cute Halloween quiz show in the browser. A ghost MC hosts, one to three players answer with their phones, and the stage is a pre-made animated set. Built for the Kiroween hackathon.
 
+**Play it:** <https://khqs.dterrarium.uk> opens the stage (public demo, free mock MC). Join from a phone with the QR code, or open `https://khqs.dterrarium.uk/ticket.html` in a second tab. It is one shared show: the first visitor is the main screen, and an idle game resets after 4 minutes. **Video:** <https://www.youtube.com/watch?v=wVaz8iyPmZY>.
+
 **Status: done (phases P0 to P7).** The show runs end to end on the real stage with either a free mock MC (default) or the Gemini Live voice MC, players on phones or the on-screen pad, and the English question bank `banks/en-bank.json`. The owner played it with the live voice MC: solo games and a two-phone game, the spoken hint request and the spoken yes/no included.
 
 ## What was made before Kiro, with Kiro, and alongside Kiro
@@ -119,7 +121,7 @@ The clip gets longer after a failed level by itself (levels 0 to 2, one short MC
 
 ### Public demo mode
 
-`docs/PUBLIC_DEMO.md` explains how the show can sit behind a tunnel: visitors get the stage, phones and the mock MC only; operator actions and the live MC need the operator secret from a local request; one game at a time with the §11 caps; per-address rate limits. Nothing is deployed from this repo.
+`docs/PUBLIC_DEMO.md` explains how the show can sit behind a tunnel: visitors get the stage, phones and the mock MC only; operator actions and the live MC need the operator secret from a local request; one game at a time with the §11 caps; per-address rate limits. Nothing is deployed from this repo; the owner runs one at <https://khqs.dterrarium.uk> (a pinned copy of this repo on the home server, behind a Cloudflare tunnel, mock MC only) through the end of judging.
 
 ### Question bank
 
@@ -179,7 +181,7 @@ Slow tests (`scripts/test.sh -m slow <file>`, run them in parallel processes): `
 ## Handoff (what the next agent does)
 
 1. **P4, the English question bank: done.** `banks/en-bank.json` (two sets of eight, three music tracks), checked with `scripts/check_bank.sh` (0 errors, 0 warnings) and on the real stage boards; act-2 explanations are short because the stage draws them as the big answer card.
-2. **P5, packaging: done by Claude Code.** This README pass, the disclosure above and `LICENSE`. Still the owner's: the demo video, and an optional public deploy (the server side is ready in `docs/PUBLIC_DEMO.md`; nothing is deployed). Never expose the stage listener or the live MC beyond localhost.
+2. **P5, packaging: done by Claude Code.** This README pass, the disclosure above and `LICENSE`. Done by the owner outside Kiro: the demo video, and the public demo at <https://khqs.dterrarium.uk> set up as `docs/PUBLIC_DEMO.md` describes. Never expose the stage listener or the live MC beyond localhost.
 
 Evidence from each phase (screenshots, logs, real-run reports) is in `/srv/workdata/build-cache/khqs-evidence/` on the owner's host; it is not in the repo. Per-phase specs and verification tables: `.kiro/specs/`.
 
