@@ -16,6 +16,8 @@ A setting that makes the show safe to put behind a tunnel, so people can open a 
 | `KHQS_MC=live` | optional: lets the **owner** start the live MC privately (below). Public visitors always get the mock |
 | `KHQS_PUBLIC_PHONE_URL` | overrides the QR URL (default `https://<host>/ticket.html`) |
 | `KHQS_PUBLIC_RESTART_STALE_S` | seconds without player input before a viewer can restart a running show (positive integer, default 60) |
+| `KHQS_VISIT_LOG` | optional path for the owner-only JSONL visit log. Off by default and used only in public mode |
+| `KHQS_VISIT_SALT_FILE` | path to a readable file containing at least 16 random bytes. Required when the public visit log is enabled |
 
 Startup refuses public mode without a valid host or a secret, with a non-loopback stage listener, and `KHQS_MC=live` without a secret.
 
@@ -41,7 +43,20 @@ A quick tunnel gets a new random host name every run, so `KHQS_PUBLIC_HOST` woul
 | Limits per client address | joins 2 per 5 minutes; connection attempts 30 per minute; start/reset/restart share 6 per minute; 8 concurrent sockets. Global: 12 stage sockets, 12 phone sockets. Limiter tables are bounded |
 | Origin | Browser requests must be same-origin with the public host; cross-site `Origin` is refused |
 | Headers | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: SAMEORIGIN` on public responses |
-| Logs | phase and player count only; no names, answers, secrets, access log |
+| Logs | The normal server log keeps phase and player-count diagnostics with access logging disabled. The optional owner-only visit log keeps event times, pseudonymous IDs, country codes, coarse device types and limited game milestones. It never stores raw IPs, full user agents, player names, answers, client IDs, credentials or secrets |
+
+## Checking who used the demo
+
+Keep the log and salt in separate files outside the repository and served directories. To enable the log, create a key once with `head -c 32 /dev/urandom > ~/.config/khqs/visits.key` under `umask 077`, then set `KHQS_VISIT_SALT_FILE` to that file and `KHQS_VISIT_LOG` to a private path such as `~/.local/state/khqs/visits.jsonl`. The server creates the log with mode `0600` and any new log parent with mode `0700`. It stops at 50 MB or on a storage error and emits one warning. If the disk falls behind, the bounded queue can drop events.
+
+```sh
+scripts/visits.py ~/.local/state/khqs/visits.jsonl
+scripts/visits.py ~/.local/state/khqs/visits.jsonl --since 2026-11-28 --exclude-vid 0123456789ab --timeline
+```
+
+Dates and times in the report are KST. The daily and total rows count distinct non-bot IDs, with bot IDs and events shown separately. The country breakdown counts distinct non-bot IDs per country. Use `--exclude-vid` with one or more IDs to remove your own public visits. IDs come from a keyed hash of the address reported by the tunnel. A shared address can represent several people, an address or key change can give one person several IDs, and the device and bot categories are estimates. A timeline can show that a visitor ID was associated with a game that reached its ending. It cannot identify a judge or establish that someone watched every moment.
+
+Page views and stage connections are recorded for public tunnel traffic with a forwarded address. The timeline attaches start, act and ending milestones to the public starter, or to the first public join if a local screen starts that game. Automatic resets use the same game attribution, with the first public join used for a lobby that never started. Accepted public RESTART and NEW SHOW requests are attributed to the caller. Direct local and LAN traffic is omitted.
 
 ## Known limits
 - Visitors share one show. Only the main screen can start it. If someone leaves the main screen open in the lobby or abandons a running show, a viewer can use RESTART once it is stalled and become the main screen. A named tunnel plus Cloudflare Access would let you restrict who can open it.

@@ -19,7 +19,7 @@ A kitschy, cute Halloween quiz show in the browser. A ghost MC hosts, one to thr
 - the handoff package Kiro started from (`docs/HANDOFF.md`, `docs/GAME_RULES.md`, the frozen `stage/` and `interface/`), and the phase requests sent to Kiro, written from the owner's decisions
 - P4: the English question content in `banks/en-bank.json` (questions, explanations, music clues; the three composer names, which Kiro added to the file in P7) and its test `tests/test_en_bank.py`
 - one stage change after the handoff, from the owner's play test: the act-2 answer reveal ends on a comedy drum roll (commit `260e0fc`; `MANIFEST.sha256` follows it)
-- the public-demo RESTART control, added after the public deployment, including the server action, the stage chip button and tests
+- the public-demo RESTART control, added after the public deployment, including the server action, the stage chip button and tests, plus the opt-in owner-only visit log and `scripts/visits.py` summary tool
 - review of each Kiro phase (Claude Code re-ran Kiro's tests and checks), and the P5 packaging: this README pass and `LICENSE`
 
 Kiro did not make the stage, the art, the sound or the question content.

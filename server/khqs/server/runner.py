@@ -18,8 +18,9 @@ log = logging.getLogger("khqs.server")
 
 def _config(app, host: str, port: int) -> uvicorn.Config:
     # access_log off: nothing sensitive in URLs, and logs carry only phase and player count
-    return uvicorn.Config(app, host=host, port=port, access_log=False, log_level="warning", ws_max_size=1 << 20,
-                          lifespan="off")
+    # guards.py needs the original socket peer to decide whether to trust forwarding headers.
+    return uvicorn.Config(app, host=host, port=port, access_log=False, proxy_headers=False, log_level="warning",
+                          ws_max_size=1 << 20, lifespan="off")
 
 
 async def serve(settings: Settings, ready: threading.Event | None = None, holder: dict | None = None, host_factory=GameHost) -> None:

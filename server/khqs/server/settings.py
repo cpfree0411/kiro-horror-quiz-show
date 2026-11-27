@@ -4,6 +4,7 @@ from __future__ import annotations
 import ipaddress
 import os
 import re
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -52,6 +53,8 @@ class Settings:
     game_cap_s: int = 40 * 60  # GAME_RULES section 11, applied to public games
     idle_reset_s: int = 240
     restart_stale_s: int = 60
+    visit_log: Path | None = None
+    visit_salt_file: Path | None = None
     diag: bool = False  # KHQS_DIAG=1 enables GET /api/diag (process and table sizes) for soak runs; local and operator only
     disconnect_grace_s: float = 2.0  # a phone that drops and returns within this time (a reload) is never shown as disconnected
     join_grace_s: float = 10.0  # a joined player with no phone socket by then is shown as disconnected
@@ -80,6 +83,7 @@ class Settings:
                 raise SettingsError("public mode needs an operator secret (KHQS_OPERATOR_SECRET or KHQS_OPERATOR_SECRET_FILE)")
             if self.restart_stale_s <= 0:
                 raise SettingsError("KHQS_PUBLIC_RESTART_STALE_S must be positive")
+            self.read_visit_key()
         if self.mc not in ("mock", "live"):
             raise SettingsError("KHQS_MC must be mock or live")
         if self.mc == "live" and not _is_loopback(self.stage_host):
@@ -87,6 +91,27 @@ class Settings:
         if self.stage_port and self.stage_port == self.phone_port:
             raise SettingsError("stage and phone ports must differ")
         return self
+
+    def read_visit_key(self) -> bytes | None:
+        if not self.public or self.visit_log is None:
+            return None
+        if self.visit_salt_file is None:
+            raise SettingsError("KHQS_VISIT_LOG needs KHQS_VISIT_SALT_FILE")
+        try:
+            served = (self.stage_dir.resolve(), self.media_dir.resolve(), Path(__file__).with_name("web").resolve())
+            log_path, salt_path = self.visit_log.resolve(), self.visit_salt_file.resolve()
+            if log_path == salt_path or any(p.is_relative_to(root) for p in (log_path, salt_path) for root in served):
+                raise SettingsError("visit log and salt must be separate files outside the served directories")
+            fd = os.open(self.visit_salt_file, os.O_RDONLY | os.O_NONBLOCK)
+            with os.fdopen(fd, "rb") as source:
+                if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                    raise OSError("not a regular file")
+                key = source.read()
+        except (OSError, RuntimeError):
+            raise SettingsError("KHQS_VISIT_SALT_FILE must be a readable regular file") from None
+        if len(key) < 16:
+            raise SettingsError("KHQS_VISIT_SALT_FILE must contain at least 16 bytes")
+        return key
 
     @property
     def join_url(self) -> str:
@@ -130,6 +155,10 @@ class Settings:
             kw["public"] = True
         if g("KHQS_PUBLIC_HOST"):
             kw["public_host"] = g("KHQS_PUBLIC_HOST").strip().lower()
+        if g("KHQS_VISIT_LOG"):
+            kw["visit_log"] = Path(g("KHQS_VISIT_LOG")).expanduser()
+        if g("KHQS_VISIT_SALT_FILE"):
+            kw["visit_salt_file"] = Path(g("KHQS_VISIT_SALT_FILE")).expanduser()
         if g("KHQS_PUBLIC_RESTART_STALE_S"):
             try:
                 kw["restart_stale_s"] = int(g("KHQS_PUBLIC_RESTART_STALE_S"))

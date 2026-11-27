@@ -19,6 +19,7 @@ from ..mc.mock import MockMc
 from ..mc.transport import GeminiTransport
 from .record import Recorder
 from .settings import Settings
+from .visit_log import VisitLog, Visitor
 
 log = logging.getLogger("khqs.server")
 QUEUE_MAX = 200
@@ -46,6 +47,8 @@ class Conn:
         self.role = "viewer"
         self.cid = ""
         self.stage_state: tuple[str, bool] | None = None
+        self.visitor: Visitor | None = None
+        self.opened_at_ms = 0
         # phone
         self.seat: int | None = None
 
@@ -108,6 +111,11 @@ class GameHost:
         self.caps_interval = 1.0
         self.stats_providers: list = []  # callables returning dicts (guard table sizes), for process_stats
         self.recorder = Recorder(self) if settings.record else None
+        visit_key = settings.read_visit_key()
+        self.visit_log = VisitLog(settings.visit_log, visit_key) if visit_key is not None else None
+        self._lobby_visitor: Visitor | None = None
+        self._game_visitor: Visitor | None = None
+        self._played_from_ms = self.last_input
         self.engine = self._new_engine()
         self.flush()
 
@@ -167,6 +175,10 @@ class GameHost:
     def has_public_clients(self) -> bool:
         return any(c.klass == "public" for c in [*self.stage.values(), *[x for cs in self.phones.values() for x in cs]])
 
+    def visit(self, visitor: Visitor | None, event: str, **fields: str | int) -> None:
+        if self.visit_log is not None and visitor is not None:
+            self.visit_log.record(self.clock.now_ms(), visitor, event, **fields)
+
     def start_pump(self) -> None:
         self._pump_task = asyncio.get_running_loop().create_task(self._pump())
         if self.settings.public:
@@ -184,9 +196,11 @@ class GameHost:
                 continue
             if now - self.game_started_at >= s.game_cap_s * 1000:
                 log.warning("game cap reached phase=%s players=%d", e.phase, len(e.players))
+                self.visit(self._game_visitor or self._lobby_visitor, "auto_reset", reason="cap", phase=e.phase, players=len(e.players))
                 self.reset(force=True)
             elif e.players and now - self.last_input >= s.idle_reset_s * 1000:
                 log.warning("idle reset phase=%s players=%d", e.phase, len(e.players))
+                self.visit(self._game_visitor or self._lobby_visitor, "auto_reset", reason="idle", phase=e.phase, players=len(e.players))
                 self.reset(force=True)
             else:
                 self._publish_stage_state()  # RESTART can become available while the engine is idle
@@ -203,6 +217,8 @@ class GameHost:
                 t.cancel()
         for c in [*self.stage.values(), *[c for cs in self.phones.values() for c in cs]]:
             c.close(1001)
+        if self.visit_log is not None:
+            await asyncio.to_thread(self.visit_log.close)
 
     async def _pump(self) -> None:
         """Sleep until the engine's next deadline; any input wakes it early. Needs no stage connected."""
@@ -242,6 +258,12 @@ class GameHost:
 
     def _dispatch(self, e) -> None:
         if isinstance(e, StageBroadcast):
+            if self._game_visitor is not None:
+                if e.msg["type"] == "act.started":
+                    self.visit(self._game_visitor, "act", act=e.msg["data"]["act"])
+                elif e.msg["type"] == "game.ended":
+                    secs = max(0, (self.clock.now_ms() - self._played_from_ms) // 1000)
+                    self.visit(self._game_visitor, "end", players=len(self.engine.players), secs=secs)
             for c in self.stage.values():
                 c.send(e.msg)
         elif isinstance(e, StageDirect):
@@ -294,6 +316,9 @@ class GameHost:
         sock.role = self.run(eng.stage_hello, sock.conn_id, role, last_sseq)
         if sock.role == "primary":  # any active reservation matched this hello
             self.restart_primary = None
+        if sock.visitor is not None:
+            sock.opened_at_ms = self.clock.now_ms()
+            self.visit(sock.visitor, "stage_open", role=sock.role)
         return sock.role
 
     def _disconnect_stage(self, sock: Conn) -> None:
@@ -303,6 +328,9 @@ class GameHost:
             reservation.expires_at_ms = self.clock.now_ms() + RESTART_RECONNECT_GRACE_MS
         del self.stage[sock.conn_id]
         self.engine.stage_disconnect(sock.conn_id)
+        if sock.visitor is not None:
+            secs = max(0, (self.clock.now_ms() - sock.opened_at_ms) // 1000)
+            self.visit(sock.visitor, "stage_close", role=sock.role, secs=secs)
 
     def drop_stage(self, sock: Conn, code: int = 1000) -> None:
         if self.stage.get(sock.conn_id) is sock:
@@ -352,12 +380,15 @@ class GameHost:
             self.run(engine.phone_connection, seat, False)
 
     # ------------------------------------------------------------------ show operations
-    def join(self, name: str) -> Result:
+    def join(self, name: str, *, visitor: Visitor | None = None, via: str = "phone") -> Result:
         self.touch_input()
         r = self.run(self.engine.join, name)
         if r.ok:  # the phone has until the grace period to open its socket (ticket -> controller redirect)
             seat = r.data["seat"]
             self._grace[seat] = asyncio.get_running_loop().call_later(self.settings.join_grace_s, self._grace_check, self.engine, seat)
+            if visitor is not None:
+                self._lobby_visitor = self._lobby_visitor or visitor
+                self.visit(visitor, "join", players=len(self.engine.players), via=via)
         return r
 
     def _grace_check(self, engine, seat: int) -> None:
@@ -371,23 +402,33 @@ class GameHost:
                 h.cancel()
             table.clear()
 
-    def start(self) -> Result:
+    def start(self, *, visitor: Visitor | None = None) -> Result:
         self.touch_input()
-        return self.run(self.engine.start)
+        r = self.engine.start()
+        if r.ok:
+            self._game_visitor = visitor or self._lobby_visitor
+            self._played_from_ms = self.clock.now_ms()
+            self.visit(self._game_visitor, "start", players=len(self.engine.players))
+        self.flush()
+        self.poke()
+        return r
 
-    def restart(self, sock: Conn) -> Result:
+    def restart(self, sock: Conn, *, visitor: Visitor | None = None) -> Result:
         primary = sock.conn_id == self.engine.primary
         if not self.restartable(sock):
             return Result(False, "LOBBY IS ALREADY EMPTY" if primary else "SHOW IN PROGRESS — TRY AGAIN SOON")
-        log.info("public restart by=%s phase=%s players=%d", "primary" if primary else "viewer",
-                 self.engine.phase, len(self.engine.players))
+        by = "primary" if primary else "viewer"
+        log.info("public restart by=%s phase=%s players=%d", by, self.engine.phase, len(self.engine.players))
+        self.visit(visitor, "restart", by=by, phase=self.engine.phase, players=len(self.engine.players))
         if primary:
             return self.reset(force=True)
         return self.reset(force=True, new_primary=sock.conn_id)
 
-    def reset(self, force: bool = False, *, new_primary: str | None = None) -> Result:
+    def reset(self, force: bool = False, *, new_primary: str | None = None, visitor: Visitor | None = None) -> Result:
         if not force and self.engine.phase != "ended":
             return Result(False, "SHOW IS STILL RUNNING")
+        if not force:
+            self.visit(visitor, "new_show")
         self.mock_mc.cancel_all()
         if self.live_mc is not None:
             self.live_mc.cancel_all()
@@ -405,6 +446,7 @@ class GameHost:
                 c.close(4002)
         self.phones.clear()
         self._cancel_timers()  # they would keep the finished game's engine (and its whole stream) alive
+        self._lobby_visitor = self._game_visitor = None
         self.game_index += 1
         self.engine = self._new_engine()
         self.game_started_at = self.clock.now_ms()

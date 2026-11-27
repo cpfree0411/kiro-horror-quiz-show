@@ -100,6 +100,17 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
                 return k, ip, JSONResponse({"error": "TOO MANY TRIES. WAIT A BIT"}, status_code=429)
         return k, ip, None
 
+    def visitor_for(r, kind, ip):
+        # Use the guard's address and require a loopback tunnel peer with a forwarded client address.
+        if (host.visit_log is not None and kind == guards.PUBLIC and r.client is not None
+                and guards.is_loopback_peer(r.client.host) and not guards.is_loopback_peer(ip)):
+            return host.visit_log.visitor(ip, r.headers.get("cf-ipcountry", ""), r.headers.get("user-agent", ""))
+        return None
+
+    def page_view(request, kind, ip, event):
+        if request.method == "GET":
+            host.visit(visitor_for(request, kind, ip), event)
+
     def operator(r, need_header: bool = True):
         """Operator actions: a local client, the custom header (not for a plain GET), and (public mode, or whenever one is set) the secret."""
         k, ip = who(r)
@@ -114,24 +125,31 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         return None
 
     def show_action(r):
-        """start / normal reset. Local clients as before; a public client must be the primary stage page."""
+        """Return admission details for start or normal reset. Public clients must be the primary stage page."""
         k, ip, err = admit(r, lim_act)
         if err is not None:
-            return err
+            return k, ip, err
         if r.headers.get("x-khqs") != "1" or not same_origin(r.headers):
-            return JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
+            return k, ip, JSONResponse({"error": "NOT ALLOWED"}, status_code=403)
         if k == guards.PUBLIC and (host.primary_cid() is None or r.headers.get("x-khqs-cid") != host.primary_cid()):
-            return JSONResponse({"error": "ONLY THE MAIN SCREEN CAN DO THAT"}, status_code=403)
-        return None
+            return k, ip, JSONResponse({"error": "ONLY THE MAIN SCREEN CAN DO THAT"}, status_code=403)
+        return k, ip, None
 
     # ---------------------------------------------------------------- phone routes (LAN port, and the stage port)
     async def ticket(request: Request):
-        _, _, err = admit(request)
-        return err or Response(pages.ticket_html(stage_dir), media_type="text/html; charset=utf-8", headers=NOCACHE)
+        k, ip, err = admit(request)
+        if err is not None:
+            return err
+        html = pages.ticket_html(stage_dir)
+        page_view(request, k, ip, "ticket_view")
+        return Response(html, media_type="text/html; charset=utf-8", headers=NOCACHE)
 
     async def phone_page(request: Request):
-        _, _, err = admit(request)
-        return err or FileResponse(web / "phone.html", headers=NOCACHE)
+        k, ip, err = admit(request)
+        if err is not None:
+            return err
+        page_view(request, k, ip, "phone_view")
+        return FileResponse(web / "phone.html", headers=NOCACHE)
 
     async def phone_asset(request: Request):
         _, _, err = admit(request)
@@ -159,7 +177,9 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
             name = json.loads(body or b"{}").get("name")
         except (ValueError, AttributeError):
             return JSONResponse({"error": "BAD REQUEST"}, status_code=400)
-        r = host.join(name)
+        # The stage connector sends this header, while the phone ticket hook omits it.
+        via = "pad" if request.headers.get("x-khqs-cid") else "phone"
+        r = host.join(name, visitor=visitor_for(request, k, ip), via=via)
         if not r.ok:
             return JSONResponse({"error": r.error})
         return JSONResponse({"ok": True, "seat": r.data["seat"], "credential": r.data["credential"]}, headers=NOCACHE)
@@ -225,8 +245,12 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
 
     # ---------------------------------------------------------------- stage-only routes
     async def index(request: Request):
-        _, _, err = admit(request)
-        return err or Response(pages.index_html(stage_dir), media_type="text/html; charset=utf-8", headers=NOCACHE)
+        k, ip, err = admit(request)
+        if err is not None:
+            return err
+        html = pages.index_html(stage_dir)
+        page_view(request, k, ip, "stage_view")
+        return Response(html, media_type="text/html; charset=utf-8", headers=NOCACHE)
 
     async def link(request: Request):
         k, _, err = admit(request)
@@ -265,12 +289,12 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         return host.live_mc
 
     async def api_start(request: Request):
-        err = show_action(request)
+        k, ip, err = show_action(request)
         if err is not None:
             return err
         if isinstance(host.mc, LiveMc) and host.mc.state != "online":
             return JSONResponse({"error": "MC OFFLINE — TRY AGAIN"})
-        r = host.start()
+        r = host.start(visitor=visitor_for(request, k, ip))
         return JSONResponse({"ok": True} if r.ok else {"error": r.error})
 
     async def api_reset(request: Request):
@@ -278,14 +302,17 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
             force = bool((json.loads(await request.body() or b"{}") or {}).get("force"))
         except (ValueError, AttributeError):
             return JSONResponse({"error": "BAD REQUEST"}, status_code=400)
-        err = operator(request) if force else show_action(request)
+        if force:
+            k, ip, err = None, "", operator(request)
+        else:
+            k, ip, err = show_action(request)
         if err is not None:
             return err
-        r = host.reset(force)
+        r = host.reset(force, visitor=visitor_for(request, k, ip))
         return JSONResponse({"ok": True} if r.ok else {"error": r.error})
 
     async def api_restart(request: Request):
-        k, _, err = admit(request, lim_act)
+        k, ip, err = admit(request, lim_act)
         if err is not None:
             return err
         if k != guards.PUBLIC:
@@ -295,7 +322,7 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         sock = host.public_stage(request.headers.get("x-khqs-cid"))
         if sock is None:
             return JSONResponse({"error": "STAGE CONNECTION REQUIRED"}, status_code=403)
-        r = host.restart(sock)
+        r = host.restart(sock, visitor=visitor_for(request, k, ip))
         return JSONResponse({"ok": True}) if r.ok else JSONResponse({"error": r.error}, status_code=409)
 
     async def api_mc_connect(request: Request):
@@ -405,6 +432,7 @@ def build_apps(host: GameHost, settings: Settings) -> tuple[Starlette, Starlette
         await ws.accept()
         sock = Conn(ws, "stage")
         sock.klass, sock.ip = k, ip
+        sock.visitor = visitor_for(ws, k, ip)
         sock.conn_id = host.new_conn_id()
         registered = False
         try:
