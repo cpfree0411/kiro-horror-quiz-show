@@ -133,7 +133,7 @@ Keep files byte-exact: `.gitattributes` turns off all line-ending conversion, an
 
 ## License
 
-The code in this repository (server, scripts, tests, the stage code in `stage/` and the protocol in `interface/`) is under the [MIT License](LICENSE). Third-party media keep their own licenses and are not relicensed:
+The code in this repository (server, scripts, tests, the stage code in `stage/` and the protocol in `interface/`) is under the [MIT License](LICENSE). What it does not cover is listed here and in [NOTICE.md](NOTICE.md). Third-party media keep their own licenses and are not relicensed:
 - `media/`: question music, listed in `media/CREDITS.md` (one recording CC BY-SA 3.0, two public domain).
 - `stage/assets/sound/`: sound effects from Pixabay under the Pixabay Content License, listed in `stage/CREDITS.md`; they may not be redistributed on their own.
 
