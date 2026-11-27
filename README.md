@@ -62,6 +62,33 @@ Open `http://localhost:18830/` in the browser on the machine that shows the stag
 
 The bottom-left chip shows PRIMARY or VIEWER, the MC state and the phase. A second tab becomes a viewer; TAKE OVER makes it the primary. NEW SHOW (after the finale, or the chip with a confirmation mid-game) opens a new lobby; question sets alternate between games.
 
+### Run it on your own machine
+
+The defaults above fit the owner's home server. On any other machine (Linux or macOS; on Windows use WSL) you need Python 3.12+, [uv](https://docs.astral.sh/uv/), a Chromium-based browser and an internet connection (the stage loads web fonts). No login or credentials are needed.
+
+```bash
+git clone https://github.com/cpfree0411/kiro-horror-quiz-show
+cd kiro-horror-quiz-show
+export KHQS_VENV="$HOME/.venvs/khqs" KHQS_UV_CACHE="$HOME/.cache/uv"   # the default venv path only exists on the owner's server
+scripts/setup_dev.sh
+KHQS_PHONE_HOST=<this computer's LAN IP> scripts/run.sh                # free mock host, no API key
+```
+
+Open `http://localhost:18830/` on the same computer (full screen looks best).
+
+- **Join with a phone** on the same Wi-Fi: scan the QR code in the lobby, enter a name, GET IN.
+- **Join without a phone:** type a name on the stage; that player uses the on-screen SCREEN PAD (the edge tab at the top right). `KHQS_PHONE_HOST` must still be a LAN address even then (loopback is refused).
+- Use two players to see the Betrayal Chance (act 1) and the hint vote (the act-2 music question). Press START; the mock host needs no microphone, so answer by tapping or typing.
+
+**Live voice host (optional, your own Gemini API key):**
+
+```bash
+echo "GEMINI_API_KEY=your-key" > ~/khqs.env
+KHQS_MC=live KHQS_ENV_FILE=~/khqs.env KHQS_PHONE_HOST=<LAN IP> scripts/run.sh
+```
+
+Open the stage at `http://localhost:18830/` (the microphone needs `localhost`), allow the microphone and speak English. Each START opens one Gemini Live session. Try buzzing in the music question and saying "It's too hard, give me a hint!"
+
 ### Settings (environment variables, all optional)
 
 | Variable | Default | Meaning |
